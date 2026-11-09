@@ -1,0 +1,1 @@
+"""Koha REST integration package."""
