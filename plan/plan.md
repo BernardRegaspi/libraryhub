@@ -1,9 +1,9 @@
-# University Library Management System (ULMS)
+# libraryhub (University Library Management System / ULMS)
 
 > **Implementation plan for AI-assisted development**  
 > **Status:** Proposed baseline — validate with the university and the existing Koha administrator before production implementation.  
 > **Estimated delivery:** 18–24 weeks for a controlled MVP-to-pilot rollout, followed by iterative enhancements. This is a planning estimate, not a delivery guarantee.  
-> **Primary architecture:** Next.js frontend + FastAPI backend + PostgreSQL application database + existing Koha integration through the Koha REST API.
+> **Primary architecture:** Next.js frontend + FastAPI backend + self-hosted Supabase PostgreSQL database + existing Koha integration through the Koha REST API. Supabase is self-hosted on university infrastructure; Koha remains a separate existing system.
 
 ---
 
@@ -11,7 +11,7 @@
 
 ### 1.1 Purpose
 
-Build a secure, responsive, multi-department University Library Management System (ULMS) that provides one modern administrative and user-facing experience across the university's five library departments while continuing to use the university's existing Koha installation as the authoritative library system for the records and transactions that Koha already manages.
+Build libraryhub, a secure, responsive, multi-department University Library Management System (ULMS), that provides one modern administrative and user-facing experience across the university's five library departments while continuing to use the university's existing Koha installation as the authoritative library system for the records and transactions that Koha already manages.
 
 The ULMS must improve the experience of librarians, library administrators, and eventually students. It must centralize department-level dashboards, staff workflows, user access, notifications, analytics, reporting, and university-specific features without creating a second, conflicting source of truth for Koha data.
 
@@ -44,7 +44,7 @@ Treat each as a configurable organizational unit. Do not assume that its name is
 - Support the five departments with configurable policies and reporting.
 - Integrate with the existing Koha system through its supported REST API.
 - Keep Koha bibliographic, item, patron, and circulation records authoritative wherever Koha already owns those records.
-- Store ULMS-only information in PostgreSQL.
+- Store ULMS-only information in the Supabase PostgreSQL database provided by the university's self-hosted Supabase deployment.
 - Provide a secure path to introduce student self-service accounts.
 - Improve reporting, notifications, auditability, and operational visibility.
 - Make the system maintainable, testable, accessible, and suitable for university deployment.
@@ -57,7 +57,7 @@ The project is successful when:
 - Staff can search the Koha catalog and view current item availability without the ULMS becoming a second catalog database.
 - Any supported circulation or patron action is executed through Koha's documented API and the outcome is confirmed before the UI reports success.
 - The five departments can be configured and reported on independently, with approved cross-department views for central administrators.
-- ULMS-only data is stored in PostgreSQL with migrations, validation, audit history, and backup/restore procedures.
+- ULMS-only data is stored in self-hosted Supabase PostgreSQL with versioned migrations, validation, audit history, and tested backup/restore procedures.
 - A student pilot can authenticate and access approved self-service features without duplicating patron records.
 - Critical workflows pass automated tests and user acceptance testing (UAT).
 - Monitoring, logging, backup, restore, security, and operational documentation are in place before production launch.
@@ -79,7 +79,7 @@ Use these labels throughout implementation:
 
 1. **Koha remains authoritative for Koha-owned records.** Bibliographic records, item copies, patron records, checkouts, check-ins, holds, fines, acquisitions, and serials must remain in Koha when those functions are already managed there.
 2. **Use the Koha REST API.** Do not connect the ULMS application directly to Koha's production MariaDB/MySQL database. Do not write to Koha tables, even for convenience or performance.
-3. **PostgreSQL is for ULMS-owned data.** Examples include ULMS users when not supplied by SSO, roles, permissions, department configuration, notifications, audit logs, preferences, application settings, and custom workflows approved by the university.
+3. **Self-hosted Supabase PostgreSQL is the primary database for ULMS-owned data.** It stores ULMS users/profile mappings when not supplied by SSO, roles, permissions, department configuration, notifications, audit logs, preferences, application settings, inventory-session data, and approved custom workflows. Supabase is the database platform; do not provision a second standalone PostgreSQL database for the same ULMS data.
 4. **Do not duplicate data without a documented reason.** Any cached Koha data must have an owner, refresh policy, expiry policy, and clear indication that it is a cache rather than the source of truth.
 5. **Confirm API capabilities before building workflows.** The exact Koha API endpoints and permissions depend on the installed Koha version and configuration. Never invent endpoints or assume that an endpoint is enabled.
 6. **Prefer modular monolith first.** Use one FastAPI backend organized by domain. Do not introduce microservices unless a measured scaling or operational requirement justifies them.
@@ -103,6 +103,32 @@ Use these labels throughout implementation:
 
 ## 3. Technical architecture
 
+### 3.0 Database platform decision — self-hosted Supabase (**required**)
+
+The ULMS primary database will be the PostgreSQL instance included in a self-hosted Supabase deployment running on university-controlled infrastructure. This is an explicit project decision, not an optional future integration.
+
+- Use the official Supabase self-hosting Docker Compose deployment as the starting point. Pin and document a tested Supabase release; do not blindly track `latest` images in production.
+- Run Supabase as a separately managed stack from the ULMS application containers. Prefer a dedicated Proxmox VM on the new application/server host, with a private network connection from the ULMS application VM.
+- Keep the existing Koha installation and its MariaDB/MySQL database separate on the existing Koha server. Never move Koha's database into Supabase.
+- FastAPI is the only normal application path to ULMS database records. Use SQLAlchemy 2.x with the Supabase PostgreSQL connection string. The Next.js browser must not connect directly to PostgreSQL or use PostgREST for ordinary application CRUD.
+- Use Alembic as the single authoritative schema-migration tool for the ULMS application schema. Do not also use Supabase CLI migrations or manually edit production tables for the same schema. Supabase CLI may be used for local Supabase development/service lifecycle only if the team documents that it is not a competing migration owner.
+- Create a dedicated application schema such as `libraryhub` for ULMS tables. Do not alter Supabase-managed schemas such as `auth`, `storage`, `realtime`, `extensions`, or other internal schemas. Keep ULMS tables out of Supabase-managed schemas.
+- Create separate least-privilege database roles for runtime application access and schema migrations. Do not use the Supabase `postgres` superuser or a service-role credential as the normal FastAPI database user.
+- Store the runtime connection string in a server-only `DATABASE_URL` environment variable and the migration connection string in a separate server-only `DATABASE_MIGRATION_URL`. Add placeholder variable names only to `.env.example`; never commit actual connection strings or passwords.
+- Use Supavisor or another connection method supported by the selected Supabase release. Verify the correct connection mode for SQLAlchemy, prepared statements, and migration execution before production.
+- Keep database connections on a private server/VLAN network. Do not expose PostgreSQL or its pooler directly to the public internet. Restrict the Supabase API gateway and Studio to the intended internal/admin networks and put approved HTTPS access behind the reverse proxy.
+- Configure server-only `DATABASE_URL` for the restricted FastAPI runtime role and `DATABASE_MIGRATION_URL` for Alembic. Never put either value in frontend environment variables or commit real credentials. Use TLS for remote database connections and verify certificates where supported.
+- Size the Supabase VM using measured catalog-independent ULMS database needs, expected concurrent requests, data growth, enabled Supabase services, backup/restore workload, and retention. The official Docker guide currently lists 4 GB RAM / 2 CPU cores / 40 GB SSD as minimum and 8 GB+ / 4 cores+ / 80 GB+ SSD as recommended for the Supabase components; these figures are not the total sizing recommendation for the ULMS host and must not replace load testing.
+- Supabase Auth, Storage, Realtime, PostgREST, and Edge Functions are **not automatically part of the MVP feature scope** merely because they are included in the Supabase platform. Enable any of those services only after a documented decision. The default application architecture in this plan continues to use FastAPI for business APIs and the existing approved OIDC/local authentication design.
+- If Supabase Auth is later approved, define how its JWTs map to ULMS users, RBAC roles, department assignments, session revocation, and FastAPI authorization before replacing the current authentication design. Do not run two competing login/session systems.
+- If Supabase Storage is later approved, define bucket policies, file-size/type validation, private access, retention, backup, and malware scanning. Until then, use the university-approved file storage path.
+- Supabase's managed-platform backups/PITR must not be assumed to exist in a self-hosted deployment. The university is responsible for database backup, recovery, updates, security, and service operations.
+
+Official references for the AI agent and administrator:
+- Supabase self-hosting overview: https://supabase.com/docs/guides/self-hosting
+- Official Docker deployment: https://supabase.com/docs/guides/self-hosting/docker
+
+
 ### 3.1 High-level architecture
 
 ```text
@@ -115,21 +141,24 @@ Staff / Students / Library Administrators
                   |
                   v
              FastAPI Backend
-      _________|___________
-     |         |           |
-     v         v           v
-PostgreSQL   Redis     Koha API Adapter
- ULMS data   cache/     (HTTPX client)
-             queue           |
-                             v
-                  Existing Koha Application
-                             |
-                             v
-                       Koha MariaDB
+      __________|________________
+     |              |             |
+     v              v             v
+Supabase         Redis       Koha API Adapter
+Supabase PG      cache/       (HTTPX client)
+ULMS data        queue              |
+     |                              v
+     |                    Existing Koha Application
+     |                              |
+     |                              v
+     |                        Koha MariaDB
+     |
+     +-- SQLAlchemy 2.x + Alembic (ULMS schema only)
 
 Background worker (Celery) ----> Redis broker ----> FastAPI services / Koha API
+Supabase self-hosted services are separately deployed and managed; unused optional services stay disabled or restricted.
 Monitoring: Prometheus + Grafana + OpenTelemetry + structured logs
-Deployment: Docker Compose + Nginx + Ubuntu Server
+Deployment: separate ULMS and Supabase Docker Compose stacks; Nginx/reverse proxy; Ubuntu Server; optional Proxmox VMs
 ```
 
 ### 3.2 Frontend technology stack
@@ -166,7 +195,8 @@ Frontend rules:
 - Use `date-fns` for display and calculation. Store timestamps consistently in UTC where appropriate and render in the configured institutional/user timezone.
 - Use accessible labels, keyboard support, focus states, and responsive layouts.
 - Do not expose Koha credentials, API tokens, or privileged endpoints in browser code.
-- Keep API calls behind the FastAPI backend; the browser must not call Koha directly.
+- Keep application data reads/writes behind the FastAPI backend; the browser must not call Koha, PostgreSQL, or Supabase PostgREST directly for ULMS business data.
+- Do not add `@supabase/supabase-js` to the required frontend stack unless a later approved feature explicitly uses Supabase Auth, Storage, or Realtime. The selected database connection is server-side through FastAPI.
 
 ### 3.3 Backend technology stack
 
@@ -174,11 +204,12 @@ Frontend rules:
 |---|---|---|
 | Language | Python (supported stable version selected at project start) | Backend language |
 | API framework | FastAPI | REST API and optional WebSocket endpoints |
-| ORM | SQLAlchemy 2.x | PostgreSQL data access |
+| ORM | SQLAlchemy 2.x | Supabase PostgreSQL data access |
+| PostgreSQL driver | Psycopg 3 | SQLAlchemy connection driver for Supabase PostgreSQL |
 | Migrations | Alembic | Versioned application database migrations |
 | Validation | Pydantic 2.x | API request/response schemas and settings |
 | HTTP client | HTTPX | Koha REST API communication |
-| Database | PostgreSQL | ULMS-owned persistent data |
+| Database platform | Self-hosted Supabase PostgreSQL | Primary persistent database for ULMS-owned data |
 | Cache / broker | Redis | Cache, rate limits, temporary coordination, task broker, Pub/Sub where needed |
 | Background tasks | Celery | Reports, scheduled tasks, bulk notifications, imports, and other long-running jobs |
 | Testing | Pytest | Unit, integration, API, and service tests |
@@ -192,13 +223,19 @@ Backend rules:
 - Retry only operations that are safe to retry. Do not blindly retry circulation writes because duplicate transactions could occur.
 - Use idempotency protections for retriable write operations where the target API supports them; otherwise use reconciliation and request tracking.
 - Validate all input with Pydantic and enforce authorization in service/API layers.
-- Use SQLAlchemy transactions and Alembic migrations for ULMS PostgreSQL changes.
+- Use SQLAlchemy transactions and Alembic migrations against the self-hosted Supabase PostgreSQL database for ULMS schema changes.
+- Connect using a dedicated least-privilege database role and the verified Supavisor/direct connection mode appropriate for the runtime and migration workload.
+- Keep all ULMS tables in the dedicated `libraryhub` schema. Never modify Supabase-managed schemas or use the database superuser for normal application traffic.
+- Apply department-aware authorization in FastAPI. Add Supabase PostgreSQL Row Level Security (RLS) as defense-in-depth where the connection/role design supports it; document how transaction-scoped user/department context reaches RLS policies and test it. Do not claim RLS protection if the runtime role bypasses it.
+- Alembic is the sole schema migration authority for the ULMS schema. Avoid competing schema changes from Supabase Studio, ad hoc SQL, or Supabase CLI migrations.
 
 ### 3.4 Data and infrastructure stack
 
 | Technology | Purpose | Priority |
 |---|---|---|
-| PostgreSQL | ULMS application database | MVP |
+| Self-hosted Supabase PostgreSQL | Primary ULMS application database | MVP / required |
+| Supabase Studio / API gateway / Supavisor | Self-hosted database administration, optional platform APIs, and supported connection pooling | Deployment; restrict access |
+| Supabase Auth / Storage / Realtime / Edge Functions | Optional Supabase capabilities; not assumed in the MVP | Conditional; separate approval |
 | Redis | Cache, rate limiting, temporary coordination, task broker | Add when required by MVP workflows; strongly recommended before background jobs/realtime scale |
 | Celery | Asynchronous and scheduled background jobs | Core follow-up |
 | WebSockets | Live notifications and operational dashboard updates | Core follow-up |
@@ -212,12 +249,12 @@ Backend rules:
 | MinIO or approved NAS/object storage | Document and attachment storage | Conditional |
 | Proxmox VE | Optional virtualization layer | Infrastructure decision, not an application dependency |
 
-Redis is not the primary database. Durable records such as notifications, audit logs, and job results must be persisted in PostgreSQL or another explicitly approved durable store. Redis Pub/Sub is not a durable event log.
+Supabase PostgreSQL is the primary durable database for ULMS-owned records. Redis is not a database of record: durable notifications, audit logs, job results, and workflow state must be persisted in Supabase PostgreSQL. Redis Pub/Sub is not a durable event log. Self-hosted Supabase is a collection of services around PostgreSQL; do not expose its PostgREST or privileged keys to the browser when FastAPI is the business API boundary.
 
 ### 3.5 Repository structure
 
 ```text
-university-library-system/
+libraryhub/
 │
 ├── frontend/
 │   ├── app/
@@ -276,7 +313,12 @@ university-library-system/
 │   └── pyproject.toml
 │
 ├── infrastructure/
-│   ├── docker/
+│   ├── docker/                 # ULMS app stack; separate from Supabase's official stack
+│   ├── supabase/
+│   │   ├── docker-compose.yml  # Reviewed/pinned official self-hosted configuration
+│   │   ├── .env.example        # Variable names/placeholders only; no secrets
+│   │   ├── README.md           # Install, upgrade, secure, operate, recover
+│   │   └── scripts/            # Safe health/backup/maintenance helpers
 │   ├── nginx/
 │   ├── monitoring/
 │   │   ├── prometheus/
@@ -293,14 +335,14 @@ university-library-system/
 │   ├── operations-runbook.md
 │   └── decisions/
 │
-├── docker-compose.yml
+├── docker-compose.yml          # ULMS application stack only; no second standalone postgres service
 ├── .env.example
 ├── .gitignore
 ├── plan.md
 └── README.md
 ```
 
-Do not create empty files and large placeholder modules solely to match this tree. Add directories as their features are implemented.
+Do not create empty files and large placeholder modules solely to match this tree. Add directories as their features are implemented. The Supabase deployment directory must be based on the official self-hosted configuration for a pinned release; do not recreate the Supabase stack manually from guessed images. Keep actual Supabase `.env`, keys, database files, and storage volumes out of Git.
 
 ---
 
@@ -317,14 +359,14 @@ Do not create empty files and large placeholder modules solely to match this tre
 | Holds/reservations | Koha, if enabled and exposed | Display/manage through supported API; otherwise mark unavailable or design an approved alternative |
 | Fines/fees | Koha if Koha owns the charge | Display and perform only explicitly supported/approved actions; payment integration is conditional |
 | Acquisitions and serials | Koha if currently configured | Integrate with Koha or build a separate approved workflow only after process review |
-| ULMS staff accounts | University SSO if available; otherwise ULMS PostgreSQL | Authentication identity and account lifecycle |
-| Roles and permissions | ULMS PostgreSQL or university identity platform | RBAC and department scope |
-| Department configuration and Koha branch mapping | ULMS PostgreSQL | Maintain configurable mapping and policies |
-| Notifications and delivery logs | ULMS PostgreSQL | Durable notices and status history |
-| Audit logs | ULMS PostgreSQL, append-only by application policy | Record sensitive actions and access |
-| Dashboard preferences and saved report settings | ULMS PostgreSQL | Persist user preferences and report definitions |
+| ULMS staff accounts | University SSO if available; otherwise ULMS Supabase PostgreSQL | Authentication identity and account lifecycle |
+| Roles and permissions | ULMS Supabase PostgreSQL or university identity platform | RBAC and department scope |
+| Department configuration and Koha branch mapping | ULMS Supabase PostgreSQL | Maintain configurable mapping and policies |
+| Notifications and delivery logs | ULMS Supabase PostgreSQL | Durable notices and status history |
+| Audit logs | ULMS Supabase PostgreSQL, append-only by application policy | Record sensitive actions and access |
+| Dashboard preferences and saved report settings | ULMS Supabase PostgreSQL | Persist user preferences and report definitions |
 | Analytics | Derived from Koha API and ULMS data | Clearly label source, freshness, and any incomplete data |
-| Uploaded documents/attachments | Approved file storage | Store metadata and secure file references in PostgreSQL |
+| Uploaded documents/attachments | Approved file storage | Store metadata and secure file references in Supabase PostgreSQL |
 
 ### 4.2 Koha integration rules
 
@@ -338,7 +380,7 @@ Do not create empty files and large placeholder modules solely to match this tre
 - Use a Koha test/staging instance or approved test data for integration tests. Provide mock adapters for local development.
 - If the installed Koha version lacks a needed API operation, document the gap and present options to the university administrator. Do not solve it by writing directly to MariaDB.
 - If webhooks are not available, use scheduled incremental polling where justified. Avoid frequent full-catalog synchronization.
-- Store external IDs and minimal linkage metadata in PostgreSQL only when required. Avoid copying complete patron or bibliographic records.
+- Store external IDs and minimal linkage metadata in Supabase PostgreSQL only when required. Avoid copying complete patron or bibliographic records.
 
 ### 4.3 Five-department configuration
 
@@ -496,7 +538,7 @@ The modules below describe the target product. The MVP subset and dependencies a
 **Rules**
 
 - Koha remains the record owner.
-- Do not create a parallel bibliographic database in PostgreSQL.
+- Do not create a parallel bibliographic database in Supabase PostgreSQL.
 - If the required write endpoints are absent or unsuitable, keep cataloguing in Koha's native staff interface and provide a deep link from ULMS.
 
 ### Module 6 — Patron and student account integration (**MVP for staff lookup; student portal later**)
@@ -560,7 +602,7 @@ The modules below describe the target product. The MVP subset and dependencies a
 **Rules**
 
 - Koha remains authoritative for hold queues and statuses.
-- Do not build a second queue in PostgreSQL unless formally approved as a separate workflow.
+- Do not build a second queue in Supabase PostgreSQL unless formally approved as a separate workflow.
 
 ### Module 9 — Fines, fees, and payments (**Conditional**)
 
@@ -619,14 +661,14 @@ Check the existing Koha serials configuration and API coverage before implementi
 
 **Rules**
 
-- Scanning/session records may belong in PostgreSQL; actual item status and item record changes remain in Koha.
+- Scanning/session records may belong in Supabase PostgreSQL; actual item status and item record changes remain in Koha.
 - Do not automatically mark items lost, withdrawn, or deleted based solely on a missing scan.
 
 ### Module 13 — Notifications and communication (**MVP: in-app; Core follow-up: channels**)
 
 **Features**
 
-- Durable in-app notifications stored in PostgreSQL.
+- Durable in-app notifications stored in Supabase PostgreSQL.
 - Notification inbox, unread/read state, categories, and preferences.
 - Trigger notifications for approved events: due-date reminders, overdue notices, hold availability, account notices, service announcements, and system alerts.
 - Department-wide or selected-audience announcements for authorized staff.
@@ -637,7 +679,7 @@ Check the existing Koha serials configuration and API coverage before implementi
 
 **Rules**
 
-- Store notifications durably in PostgreSQL; Redis may deliver real-time events but is not the notification record store.
+- Store notifications durably in Supabase PostgreSQL; Redis may deliver real-time events but is not the notification record store.
 - Avoid exposing patron-sensitive details in notification previews, logs, or lock-screen messages.
 - Respect opt-in/opt-out and university communication policy.
 
@@ -706,7 +748,7 @@ Start with a limited pilot group. Validate identity-to-patron matching, privacy 
 - Folder/category metadata, permissions, file versioning, retention rules, and download audit.
 - Malware scanning and file type/size restrictions.
 - OCR/search only if required and approved.
-- Store files in approved NAS/object storage or another managed file store; store metadata and access controls in PostgreSQL.
+- Store files in approved NAS/object storage or another managed file store; store metadata and access controls in Supabase PostgreSQL.
 
 Do not use the ULMS as a general-purpose document repository without retention, privacy, backup, and storage requirements.
 
@@ -752,7 +794,7 @@ Do not introduce biometrics or unnecessary personal tracking.
 - Import only approved ULMS-owned datasets, such as department configuration or staff mappings.
 - Validate templates, preview records, report row-level errors, and require confirmation before committing.
 - Export ULMS-owned data in approved formats.
-- Do not bulk-copy the full Koha catalog or patron database into PostgreSQL.
+- Do not bulk-copy the full Koha catalog or patron database into Supabase PostgreSQL.
 - Any migration from a previous custom system requires source mapping, data cleansing, approval, test migration, reconciliation, and rollback plan.
 
 ### Module 22 — Operational health and observability (**Production readiness**)
@@ -761,7 +803,7 @@ Do not introduce biometrics or unnecessary personal tracking.
 
 - API health and readiness endpoints.
 - Koha API availability, latency, timeout, and error-rate metrics.
-- PostgreSQL connection and query performance metrics.
+- Supabase PostgreSQL connection and query performance metrics.
 - Redis and Celery queue health if deployed.
 - Background job status, retries, and failures.
 - Structured application logs with correlation IDs.
@@ -816,10 +858,10 @@ Do not expose metrics endpoints publicly without access restrictions.
 ### 7.5 Notification workflow
 
 1. A confirmed event occurs or a scheduled job identifies a condition.
-2. The backend creates a durable notification record in PostgreSQL.
+2. The backend creates a durable notification record in Supabase PostgreSQL.
 3. An optional Celery job sends approved external channel messages.
 4. Delivery status and failures are recorded.
-5. Optional WebSocket delivery updates the active user's UI; reconnecting clients can retrieve unread notifications from PostgreSQL.
+5. Optional WebSocket delivery updates the active user's UI; reconnecting clients can retrieve unread notifications from Supabase PostgreSQL.
 
 ---
 
@@ -860,11 +902,21 @@ Rules:
 
 ---
 
-## 9. PostgreSQL data model (ULMS-owned data only)
+## 9. Supabase PostgreSQL data model (ULMS-owned data only)
 
 The exact schema must be designed after discovery. The following are candidate entities, not permission to duplicate Koha records.
 
-### 9.1 Core tables
+### 9.1 Database and schema layout
+
+- The database engine is PostgreSQL supplied by the self-hosted Supabase deployment.
+- Place ULMS-owned tables in a dedicated schema named `libraryhub` (or another approved project-specific schema chosen before the first migration).
+- Keep Supabase-managed schemas and tables untouched. Do not add application tables to `auth`, `storage`, `realtime`, `extensions`, or other internal schemas.
+- Use a restricted runtime database role for FastAPI and a separate migration role for Alembic. Credentials must be separate and stored as server-side secrets.
+- Do not use the Supabase `service_role` API key as a substitute for a database role. Do not use a superuser database connection for application traffic.
+- The Next.js browser must not connect directly to PostgreSQL or PostgREST for application CRUD. The supported request path is Next.js -> FastAPI -> Supabase PostgreSQL.
+- Keep Supabase Studio available only to authorized administrators over a restricted network or protected administrative access path.
+
+### 9.2 Core tables
 
 - `users` — ULMS identity profile or SSO subject mapping; do not duplicate unnecessary student profile information.
 - `roles`
@@ -877,7 +929,7 @@ The exact schema must be designed after discovery. The following are candidate e
 - `user_preferences`
 - `sessions` or session revocation records, depending on chosen auth design.
 
-### 9.2 Integration tables
+### 9.3 Integration tables
 
 - `integration_configs` — non-secret configuration metadata; secrets belong in environment/secret management.
 - `integration_status`
@@ -885,7 +937,7 @@ The exact schema must be designed after discovery. The following are candidate e
 - `sync_cursors` — polling cursors/checkpoints if synchronization is implemented.
 - `integration_request_logs` — safe metadata, outcome, duration, correlation ID; do not store sensitive payloads by default.
 
-### 9.3 Operational tables
+### 9.4 Operational tables
 
 - `notifications`
 - `notification_preferences`
@@ -901,16 +953,16 @@ The exact schema must be designed after discovery. The following are candidate e
 - `uploaded_files` — metadata and storage references only, if file management is approved.
 - `system_settings`
 
-### 9.4 Data model rules
+### 9.5 Data model rules
 
-- Use UUID or another consistently selected primary-key strategy for ULMS entities.
+- Use UUID or another consistently selected primary-key strategy for ULMS entities. Coordinate any UUID defaults/extensions with the installed Supabase PostgreSQL configuration.
 - Use foreign keys and appropriate indexes.
 - Include `created_at`, `updated_at`, and actor metadata where appropriate.
 - Use soft deletion only where there is a documented retention and restore need; do not soft-delete authoritative Koha records locally.
 - Apply retention rules to logs and personal data.
 - Add database constraints for uniqueness and valid states.
 - Store time values consistently; use timezone-aware timestamps.
-- Keep Alembic migrations small, reviewable, and reversible when practical.
+- Keep Alembic migrations small, reviewable, and reversible when practical. Alembic is the only schema migration authority for the `libraryhub` schema; do not create duplicate Supabase CLI migration histories for the same tables.
 - Never store card/payment credentials or plaintext passwords.
 
 ---
@@ -940,7 +992,7 @@ The university must identify applicable privacy, records-retention, cybersecurit
 - HTTPS for all deployed environments.
 - Secure secret management; `.env` files must not be committed.
 - Separate development, testing/staging, and production configurations.
-- Least-privilege service accounts for Koha API and PostgreSQL.
+- Least-privilege service accounts for Koha API and database access; separate runtime and migration roles for Supabase PostgreSQL.
 - Backend authorization on every protected endpoint.
 - Department-level data isolation.
 - Password hashing with Argon2id if local passwords are used.
@@ -1012,7 +1064,7 @@ These are proposed targets, not claims about current system performance:
 - If Koha is unavailable, permit only ULMS functions that do not depend on Koha.
 - Do not queue circulation operations for later execution unless a formally designed safe workflow exists; doing so can create double transactions or stale decisions.
 - Display partial dashboard results with clear source/freshness labels.
-- Reconnect live UI channels and reload durable notification state from PostgreSQL.
+- Reconnect live UI channels and reload durable notification state from Supabase PostgreSQL.
 
 ---
 
@@ -1020,7 +1072,7 @@ These are proposed targets, not claims about current system performance:
 
 ### 13.1 Test stack
 
-- Backend: Pytest, HTTPX test client, SQLAlchemy test database, mocked Koha adapter, and contract tests against approved Koha staging.
+- Backend: Pytest, HTTPX test client, SQLAlchemy test database using a disposable PostgreSQL test instance or isolated test schema, mocked Koha adapter, and contract tests against approved Koha staging. The test database must not be the production Supabase instance.
 - Frontend: Vitest and React Testing Library.
 - End-to-end: Playwright.
 - Python lint/format: Ruff.
@@ -1050,7 +1102,10 @@ These are proposed targets, not claims about current system performance:
 - An unverified branch mapping blocks branch-dependent operations.
 - A notification persists after WebSocket disconnect/reconnect.
 - A large report runs as a background job and can be downloaded only by an authorized user.
-- A backup can restore the ULMS database and approved file metadata in a documented test environment.
+- A backup can restore the Supabase PostgreSQL ULMS schema/data and approved file metadata in a documented isolated test environment.
+- The FastAPI runtime connects with a restricted database role; migration credentials are separate and privileged access is not used for ordinary requests.
+- No public internet route exposes PostgreSQL, Supavisor, Studio, or privileged Supabase APIs.
+- Alembic can upgrade a clean Supabase PostgreSQL test database and safely report migration status; no duplicate migration authority exists.
 
 ---
 
@@ -1058,20 +1113,27 @@ These are proposed targets, not claims about current system performance:
 
 ### 14.1 Environment separation
 
-- **Local development:** Docker Compose, seeded synthetic data, mocked Koha API by default.
-- **Integration/staging:** Separate ULMS database and approved Koha test/staging endpoint; never use production data unless explicitly approved and protected.
+- **Local development:** Supabase CLI local development stack or an isolated disposable self-hosted Supabase stack, seeded synthetic data, mocked Koha API by default. Do not expose the local development stack to external traffic.
+- **Integration/staging:** Separate Supabase PostgreSQL instance/database or isolated environment and approved Koha test/staging endpoint; never use production data unless explicitly approved and protected.
 - **Production:** University-approved host, DNS, TLS, backup, monitoring, firewall, service accounts, and change window.
 
-### 14.2 Initial container services
+### 14.2 Initial container services and separate Supabase stack
 
-MVP Compose services may include:
+**ULMS application Compose stack** (`docker-compose.yml`) may include:
 
 - `frontend` — Next.js application.
 - `backend` — FastAPI application.
-- `postgres` — ULMS PostgreSQL database with persistent volume.
-- `nginx` — reverse proxy for deployed environments.
+- `nginx` — reverse proxy for the ULMS application.
 
-Add only when required:
+**Supabase stack** (`infrastructure/supabase/`) is deployed and operated separately using the official self-hosted Supabase Docker Compose configuration for a pinned release. It provides the ULMS primary PostgreSQL database. Do not define a second standalone `postgres` container in the ULMS application Compose file.
+
+- Start from the official Supabase self-hosted Docker Compose deployment and retain its documented service dependencies.
+- Enable only the Supabase services required by the approved architecture. Auth, Storage, Realtime, PostgREST, Edge Functions, and optional logging/analytics are not automatically required for the ULMS MVP.
+- Keep Studio and database administration restricted to authorized administrators. Keep Supabase PostgreSQL and pooler access on the private network only.
+- Configure persistent volumes, health checks, resource limits where supported, pinned image versions, and documented update/rollback procedures. Unused services may be removed or disabled according to the official guide and their dependency requirements.
+- Use a private network/VLAN or firewall-restricted link from the FastAPI host to Supabase PostgreSQL/Supavisor. Do not publish database ports to the public internet.
+
+Add only when required to the ULMS application stack:
 
 - `redis` — cache/queue support.
 - `worker` — Celery worker.
@@ -1080,7 +1142,7 @@ Add only when required:
 - `grafana` — monitoring dashboards.
 - OpenTelemetry Collector — trace/log/metric pipeline if the chosen observability architecture requires it.
 
-Do not put the existing Koha MariaDB database into this project's Compose file. It remains managed by the existing Koha deployment.
+Do not put the existing Koha MariaDB database into either the ULMS or Supabase Compose stack. It remains managed by the existing Koha deployment. Do not add a duplicate standalone PostgreSQL service to the ULMS Compose file; Supabase PostgreSQL is the one ULMS application database.
 
 ### 14.3 Server planning
 
@@ -1088,17 +1150,20 @@ Do not put the existing Koha MariaDB database into this project's Compose file. 
 - Assess the existing Koha server and network through an authorized review before deciding whether to retain, upgrade, or replace it.
 - Evaluate the new ULMS host separately from Koha capacity. A new ULMS host cannot eliminate delays inside the existing Koha server or its API.
 - Define CPU, RAM, storage, RAID, network, UPS, backup, warranty, support, and growth requirements from measured workload and procurement policy.
-- A single new application server may be sufficient for the first deployment, but it is not high availability. Consider separate backup storage and UPS. Add a second application/database host only when availability requirements and budget justify it.
+- Preferred initial layout: one adequately sized new physical host running Proxmox VE (if supported by the university) with separate VMs for the ULMS application stack and self-hosted Supabase stack. Keep the existing R230 dedicated to Koha. The Supabase VM is a separate failure and resource boundary, but both VMs still depend on the same physical host.
+- A dedicated physical Supabase server is a later option when measured database workload, capacity, maintenance, or availability requirements justify it. Do not buy a second physical server solely by assumption.
+- Supabase official Docker guide sizing reference: minimum 4 GB RAM, 2 CPU cores, 40 GB SSD; recommended 8 GB+ RAM, 4 cores+, 80 GB+ SSD for the Supabase components. Treat these as platform baseline guidance only; size the actual database VM and physical host from measured workload, storage growth, backups, and enabled services. Reference: https://supabase.com/docs/guides/self-hosting/docker
+- Consider separate backup storage and UPS. A single new physical host is not high availability; separate backups reduce data-loss risk but do not provide automatic failover.
 - Proxmox VE is optional. Decide whether virtualization is operationally useful and supported by the university's IT team.
 
 ### 14.4 Backups and recovery
 
-- Schedule PostgreSQL backups and verify completion.
+- Schedule backups for the self-hosted Supabase PostgreSQL database and verify completion. Do not assume Supabase managed backups or point-in-time recovery are available in self-hosting.
 - Store backups separately from the production host; encrypt and restrict access.
 - Define RPO/RTO with the university.
 - Back up approved uploaded files and configuration, not secrets in plaintext.
 - Test restore procedures regularly in a separate environment.
-- Document recovery of frontend/backend containers, PostgreSQL, file storage, and integration credentials.
+- Document recovery of frontend/backend containers, the Supabase stack and Supabase PostgreSQL data, approved file storage, and integration credentials.
 - Koha backup and recovery remain coordinated with the Koha administrator and are outside the ULMS backup job unless explicitly integrated under an approved plan.
 
 ---
@@ -1118,7 +1183,7 @@ The timeline assumes timely access to an authorized Koha test environment, a des
 - Verify API access, authentication, endpoints, methods, pagination, rate limits, and permissions in a test environment.
 - Confirm whether the five departments map one-to-one to Koha libraries/branches.
 - Confirm identity provider/SSO availability and student identifier matching policy.
-- Gather approved branding, user roles, privacy rules, report requirements, retention rules, and deployment constraints.
+- Gather approved branding, user roles, privacy rules, report requirements, retention rules, and deployment constraints. Decide the Supabase hosting topology, private network path, database sizing, backup approach, and whether optional Supabase services will be disabled or enabled.
 - Establish baseline performance measurements with permission; separate frontend, network, backend, and Koha latency.
 
 **Deliverables**
@@ -1128,6 +1193,7 @@ The timeline assumes timely access to an authorized Koha test environment, a des
 - Data ownership and branch mapping draft.
 - Role/permission matrix.
 - Architecture decision record (ADR) for authentication and deployment.
+- Supabase deployment/topology decision, database role plan, connection mode, and backup/restore requirements.
 - Prioritized MVP backlog and acceptance criteria.
 
 **Exit gate:** Do not start Koha-dependent write features until the API capability matrix and data ownership are reviewed.
@@ -1139,15 +1205,17 @@ The timeline assumes timely access to an authorized Koha test environment, a des
 - Create repository structure and developer documentation.
 - Initialize Next.js, TypeScript, Tailwind, shadcn/ui, and approved frontend dependencies.
 - Initialize FastAPI, SQLAlchemy, Pydantic, Alembic, and Pytest.
-- Configure PostgreSQL and Docker Compose.
+- Configure the local Supabase development environment, Supabase PostgreSQL connection, Alembic, and Docker Compose.
 - Add environment configuration and `.env.example`.
 - Add linting, formatting, type checking, test commands, and CI pipeline.
 - Implement health/readiness endpoints and structured logging.
 - Establish frontend layout, navigation shell, API client, error handling, and design tokens.
+- Create a documented Supabase database connection configuration, separate runtime/migration credentials, `libraryhub` schema convention, and Alembic baseline.
 
 **Deliverables**
 
-- Running local development environment.
+- Running local development environment connected to a disposable/local Supabase PostgreSQL database.
+- Separate, documented Supabase self-hosting configuration based on an official pinned release (production deployment remains gated by approval).
 - CI checks for lint, type check, tests, and build.
 - Initial architecture and developer setup docs.
 - Empty but functioning application shell.
@@ -1158,7 +1226,7 @@ The timeline assumes timely access to an authorized Koha test environment, a des
 
 **Activities**
 
-- Implement approved authentication flow (OIDC preferred if available; otherwise local auth).
+- Implement approved authentication flow (OIDC preferred if available; otherwise local auth). The database is Supabase PostgreSQL; Supabase Auth is not required unless separately approved.
 - Implement users, roles, permissions, department assignments, and protected routes.
 - Seed the five department records as configurable initial data.
 - Add department-to-Koha-branch mapping management.
@@ -1276,11 +1344,12 @@ The timeline assumes timely access to an authorized Koha test environment, a des
 
 - Complete end-to-end regression suite.
 - Perform role/department access review.
+- Review Supabase deployment security, internal-only database connectivity, database roles, schema isolation, RLS policies where used, and Studio access.
 - Conduct security and dependency scans.
 - Conduct performance and load tests.
 - Tune database indexes, API payloads, caching, and Koha call patterns based on measurements.
 - Configure Prometheus, Grafana, and OpenTelemetry as approved.
-- Configure TLS, firewall, backups, restore tests, alerts, and operations runbook.
+- Configure TLS, firewall, Supabase database backups, restore tests, alerts, and operations runbook.
 - Conduct UAT with representatives from all five departments.
 - Fix high-priority UAT defects and prepare rollback plan.
 
@@ -1400,6 +1469,10 @@ Never let an AI coding agent deploy to production, run destructive migrations, c
 | Student identity source unknown | Duplicate/wrong patron linkage or privacy breach | Confirm SSO/SIS source and stable unique identifier before student rollout |
 | Existing Koha performance problems | ULMS may inherit slow catalog/API responses | Measure Koha/server/network separately; do not assume the new app host fixes Koha latency |
 | Current server capacity unknown | Deployment sizing may be wrong | Authorized infrastructure assessment and load testing |
+| Self-hosted Supabase operations are not yet assigned | Database outage, missed updates, or data loss | Name an owner for Supabase patching, monitoring, secrets, database maintenance, backup, restore, and incident response |
+| Supabase self-hosted deployment topology not approved | Network exposure or resource contention | Approve separate VM/host, private network, firewall, and capacity plan before production |
+| Supabase backup/PITR expectations unclear | False recovery assumptions | Define backup frequency, retention, RPO/RTO, WAL/PITR approach if required, off-host storage, and regular restore tests |
+| Supabase services beyond PostgreSQL not scoped | Unnecessary attack surface and maintenance | Keep Auth, Storage, Realtime, PostgREST, Edge Functions, and optional analytics disabled/restricted until approved |
 | Current library workflows vary by department | Incomplete requirements and poor adoption | Conduct interviews and approve workflow matrix |
 | Notifications require paid providers or consent | Unplanned cost/privacy risk | Confirm vendor, pricing, message policy, and consent before integration |
 | Reports may require data not exposed by API | Incorrect or incomplete analytics | Document data gaps and use approved alternative sources; do not query Koha DB directly |
@@ -1418,6 +1491,10 @@ Never let an AI coding agent deploy to production, run destructive migrations, c
 - Which reports are required by department heads and central management?
 - What privacy, retention, and audit policies apply?
 - What are the production hosting, DNS, TLS, backup, RPO, and RTO requirements?
+- Will self-hosted Supabase run in a dedicated VM on the new Proxmox host or on a separate physical server?
+- Who owns Supabase security updates, secrets, database maintenance, backups, restores, monitoring, and incident response?
+- Which Supabase services beyond PostgreSQL, if any, are approved for use (Auth, Storage, Realtime, PostgREST, Edge Functions)?
+- What database backup approach and recovery objectives are required for self-hosted Supabase?
 - Are email, SMS, push, payments, acquisitions, serials, document management, rooms, or visitor modules in scope?
 
 ---
@@ -1428,7 +1505,7 @@ Never let an AI coding agent deploy to production, run destructive migrations, c
 
 ### 19.1 Role and objective
 
-You are the senior full-stack engineer responsible for implementing this University Library Management System according to this `plan.md`. Build a secure, maintainable, tested application that integrates with the university's existing Koha system through its REST API. Treat this plan as the product and architecture baseline. Do not silently change the agreed technology stack, system boundaries, data ownership, or security requirements.
+You are the senior full-stack engineer responsible for implementing libraryhub, a University Library Management System (ULMS), according to this `plan.md`. Build a secure, maintainable, tested application that integrates with the university's existing Koha system through its REST API. Treat this plan as the product and architecture baseline. Do not silently change the agreed technology stack, system boundaries, data ownership, or security requirements.
 
 ### 19.2 Mandatory rules
 
@@ -1449,9 +1526,26 @@ You are the senior full-stack engineer responsible for implementing this Univers
 15. Update this plan's checkboxes or a linked progress tracker as work is completed; do not remove requirements simply because they are difficult.
 16. Prefer a modular monolith. Do not introduce microservices, Kubernetes, or extra infrastructure without a documented need and approval.
 17. Keep Koha-dependent write workflows disabled until the capability matrix confirms support and staging tests pass.
-18. Use migrations for PostgreSQL schema changes. Never change the production Koha schema.
-19. Keep code typed, readable, documented, and consistent with lint/format rules.
-20. At the end of each implementation phase, report changed files, behavior implemented, commands/tests run, results, remaining gaps, and the next smallest safe step.
+18. Use Alembic as the only schema migration authority for ULMS tables in the `libraryhub` schema of self-hosted Supabase PostgreSQL. Do not also manage the same tables with Supabase CLI migrations or manual Studio SQL. Never change the production Koha schema.
+19. Use separate least-privilege database runtime and migration roles; never use the Supabase postgres superuser or service-role API key for normal FastAPI database access.
+20. Do not expose Supabase database ports, Studio, secret keys, service-role keys, or privileged API routes publicly. Keep database traffic private and administrative interfaces restricted.
+21. Do not let the browser perform direct ULMS CRUD through PostgREST. The request path is Next.js -> FastAPI -> Supabase PostgreSQL. Supabase Auth/Storage/Realtime may be adopted only through a documented architecture decision.
+22. Keep the official self-hosted Supabase Compose stack separately managed from the ULMS application Compose stack. Do not create a duplicate standalone PostgreSQL container for ULMS.
+23. Keep code typed, readable, documented, and consistent with lint/format rules.
+24. At the end of each implementation phase, report changed files, behavior implemented, commands/tests run, results, remaining gaps, and the next smallest safe step.
+
+### 19.2.1 Mandatory Supabase database rules
+
+1. The required ULMS database is the PostgreSQL database in the university's self-hosted Supabase deployment. Do not provision a separate standalone PostgreSQL database for ULMS.
+2. Use the official Supabase self-hosted Docker Compose configuration and pin a tested release. Keep its deployment and secrets separate from the ULMS application Compose stack.
+3. Use SQLAlchemy 2.x for runtime access and Alembic for ULMS schema migrations. Alembic owns the `libraryhub` schema; do not create a second migration authority for the same tables.
+4. Never modify Supabase-managed schemas. Do not place ULMS tables in `auth`, `storage`, `realtime`, `extensions`, or other system schemas.
+5. Use separate least-privilege runtime and migration database roles. Never use the database superuser or Supabase service-role API key for ordinary application queries.
+6. Keep Supabase PostgreSQL/Supavisor connections private. Keep Studio and administrative endpoints restricted. Never expose secret keys or service-role credentials in frontend code.
+7. FastAPI is the normal application data-access layer. The browser must not call PostgREST for ULMS CRUD unless a future architecture decision explicitly approves and secures that design.
+8. Supabase Auth, Storage, and Realtime are optional product capabilities, not implied requirements. Do not implement them unless approved in a documented decision.
+9. Test migrations, role permissions, backup/restore, and connection-pool behavior against a non-production Supabase instance before deployment.
+10. Self-hosting means the university owns operations: patching, service health, database maintenance, backups, restore, network security, secrets, and incident response.
 
 ### 19.3 Required workflow for every task
 
@@ -1470,7 +1564,7 @@ Follow this order unless a documented dependency requires a change:
 
 1. Phase 0 discovery artifacts and Koha capability matrix.
 2. Repository foundation, local Docker Compose, CI, and documentation.
-3. PostgreSQL foundation and Alembic migration conventions.
+3. Self-hosted Supabase PostgreSQL foundation, dedicated database roles, and Alembic migration conventions.
 4. Authentication, RBAC, department model, and audit foundation.
 5. Koha HTTPX client, mock adapter, capability registry, and staging contract tests.
 6. Catalog search and item availability.
@@ -1490,7 +1584,8 @@ Maintain these documents as the implementation evolves:
 - `docs/data-ownership.md` — source-of-truth matrix and any approved changes.
 - `docs/koha-integration.md` — Koha version, API capability matrix, authentication, endpoint mapping, limitations, and test approach. Never include secrets.
 - `docs/security.md` — authentication, authorization, threat controls, privacy, and audit.
-- `docs/deployment.md` — environment setup, deployment, migrations, TLS, and rollback.
+- `docs/deployment.md` — environment setup, separate ULMS/Supabase deployments, migrations, network boundaries, TLS, upgrades, backups, and rollback.
+- `infrastructure/supabase/README.md` — pinned official Supabase release, enabled services, secrets setup, access restrictions, update process, backup/restore, and troubleshooting. Never include actual secrets.
 - `docs/operations-runbook.md` — monitoring, backups, restore, incident handling, and troubleshooting.
 - `docs/decisions/` — short ADRs for significant architectural decisions.
 - `CHANGELOG.md` — user-visible changes by release.
@@ -1502,7 +1597,7 @@ A module is complete only when:
 - Its business requirements and permissions are documented.
 - UI, API, service, and data layers are implemented where required.
 - It handles loading, empty, validation, unauthorized, unavailable, and error states.
-- Database migrations are present and tested, if schema changes are needed.
+- Alembic database migrations against Supabase PostgreSQL are present and tested, if schema changes are needed.
 - Unit and API tests cover success and failure paths.
 - End-to-end tests cover critical user journeys where applicable.
 - Audit and privacy requirements are satisfied.
@@ -1518,7 +1613,7 @@ Do not begin by implementing every module. First perform a repository and requir
 1. A summary of existing repository state.
 2. A list of confirmed requirements and unresolved decisions.
 3. A Koha discovery checklist and capability matrix template.
-4. A proposed database ownership/schema outline.
+4. A proposed Supabase PostgreSQL database ownership/schema outline, including the `libraryhub` schema, database roles, RLS approach, and Alembic migration policy.
 5. A prioritized MVP backlog split into small implementation tasks.
 6. A list of risks and required human approvals.
 7. A proposed Phase 1 implementation plan with testable acceptance criteria.
@@ -1548,8 +1643,13 @@ Use this checklist to track progress. Mark an item complete only when its delive
 - [ ] Create repository and documented structure.
 - [ ] Initialize frontend stack.
 - [ ] Initialize FastAPI backend stack.
-- [ ] Configure PostgreSQL and Alembic.
-- [ ] Configure local Docker Compose.
+- [ ] Configure local Supabase development stack/database.
+- [ ] Prepare the official self-hosted Supabase Docker Compose deployment in `infrastructure/supabase/` using a pinned release.
+- [ ] Configure private ULMS-to-Supabase PostgreSQL connectivity and verify the selected Supavisor/direct connection mode.
+- [ ] Create separate least-privilege runtime and migration database roles.
+- [ ] Create the ULMS `libraryhub` schema and configure Alembic as the sole migration authority.
+- [ ] Document Supabase services that are enabled, disabled, or deferred (Auth, Storage, Realtime, PostgREST, Studio).
+- [ ] Configure local ULMS Docker Compose separately from the Supabase stack.
 - [ ] Add lint, type-check, tests, and CI.
 - [ ] Add structured logging, health, and readiness endpoints.
 - [ ] Create architecture and data ownership documentation.
@@ -1594,8 +1694,9 @@ Use this checklist to track progress. Mark an item complete only when its delive
 - [ ] Complete security review and dependency scan.
 - [ ] Complete load/performance tests.
 - [ ] Complete UAT in all five departments.
-- [ ] Configure TLS and production secrets.
-- [ ] Configure backups and prove restore.
+- [ ] Configure TLS, Supabase secrets, private network rules, and restricted Studio access.
+- [ ] Configure automated Supabase PostgreSQL backups and prove restore to a separate environment.
+- [ ] Confirm no Supabase managed-backup/PITR feature is being assumed for self-hosting.
 - [ ] Complete monitoring and alerting.
 - [ ] Complete deployment and rollback runbooks.
 - [ ] Obtain production approval.
@@ -1608,6 +1709,6 @@ Use this checklist to track progress. Mark an item complete only when its delive
 
 Build the ULMS as a new application around the existing Koha installation—not as a replacement for Koha by default. The first priority is to verify the real workflows, the installed Koha API capabilities, the five department mappings, and the university's identity/access policies. Then deliver the staff MVP in controlled phases.
 
-The most important architectural rule is: **Koha owns Koha library transactions and records; PostgreSQL owns ULMS-specific application data; FastAPI is the secure integration boundary between the Next.js frontend and Koha.**
+The most important architectural rule is: **Koha owns Koha library transactions and records; self-hosted Supabase PostgreSQL owns ULMS-specific application data; FastAPI is the secure application/data-access boundary between the Next.js frontend, Supabase PostgreSQL, and the existing Koha REST API.**
 
 Do not sacrifice data integrity, patron privacy, or production safety to make an AI-generated feature appear complete. When an API capability or policy is unknown, document the gap, keep the affected feature disabled, and request an authorized decision rather than guessing.

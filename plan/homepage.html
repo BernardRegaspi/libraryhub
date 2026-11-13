@@ -1,0 +1,4861 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        background-color: white; /* Ensure the iframe has a white background */
+      }
+
+      /* ============================================================
+styles.css — custom layer for the USANT Library homepage
+Tailwind handles utilities; this file holds component classes,
+motion, and accessibility rules.
+============================================================ */
+
+      html {
+        scroll-padding-top: 96px;
+      }
+
+      ::selection {
+        background: #faa61a;
+        color: #2e080a;
+      }
+
+      :focus-visible {
+        outline: 3px solid #faa61a;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      /* ---------- Accessibility ---------- */
+      .skip-link {
+        position: fixed;
+        left: 1rem;
+        top: -5rem;
+        z-index: 100;
+        background: #7d1519;
+        color: #faf7f1;
+        padding: 0.65rem 1.1rem;
+        border-radius: 0.6rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition: top 0.2s ease;
+      }
+      .skip-link:focus {
+        top: 1rem;
+      }
+
+      /* ---------- Header / navigation ---------- */
+      #siteHeader.is-scrolled {
+        box-shadow: 0 12px 32px -14px rgba(46, 8, 10, 0.28);
+      }
+
+      .nav-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        padding: 0.55rem 0.8rem;
+        border-radius: 0.6rem;
+        color: #221a18;
+        cursor: pointer;
+        transition: color 0.2s ease;
+      }
+      .nav-link:hover {
+        color: #7d1519;
+      }
+      .nav-link::after {
+        content: "";
+        position: absolute;
+        left: 0.8rem;
+        right: 0.8rem;
+        bottom: 0.22rem;
+        height: 2px;
+        background: #faa61a;
+        border-radius: 2px;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.25s ease;
+      }
+      .nav-link:hover::after,
+      .nav-link.active::after {
+        transform: scaleX(1);
+      }
+      .nav-link.active {
+        color: #7d1519;
+        font-weight: 600;
+      }
+
+      .dropdown {
+        position: absolute;
+        top: calc(100% + 0.6rem);
+        left: 0;
+        min-width: 16rem;
+        background: #fff;
+        border: 1px solid rgba(125, 21, 25, 0.12);
+        border-radius: 1rem;
+        box-shadow: 0 24px 60px -20px rgba(34, 26, 24, 0.3);
+        padding: 0.5rem;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(8px);
+        transition:
+          opacity 0.22s ease,
+          transform 0.22s ease,
+          visibility 0.22s;
+        z-index: 60;
+      }
+      .group:hover .dropdown,
+      .group.dd-open .dropdown,
+      .group:focus-within .dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .dropdown a {
+        display: block;
+        padding: 0.55rem 0.8rem;
+        border-radius: 0.6rem;
+        color: #221a18;
+        font-size: 0.9rem;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      .dropdown a:hover {
+        background: #fbf4f4;
+        color: #7d1519;
+      }
+
+      .m-link {
+        display: block;
+        padding: 0.7rem 0.9rem;
+        border-radius: 0.7rem;
+        color: #221a18;
+        transition:
+          background 0.15s,
+          color 0.15s;
+      }
+      .m-link:hover {
+        background: #f6e6e6;
+        color: #7d1519;
+      }
+      .m-sub-toggle {
+        cursor: pointer;
+      }
+      .m-sub-toggle[aria-expanded="true"] i {
+        transform: rotate(180deg);
+      }
+
+      /* ---------- Hero ---------- */
+      .kenburns {
+        animation: kenburns 24s ease-in-out infinite alternate;
+        transform-origin: center;
+      }
+      @keyframes kenburns {
+        from {
+          transform: scale(1);
+        }
+        to {
+          transform: scale(1.09);
+        }
+      }
+
+      .hero-anim {
+        opacity: 0;
+        animation: fadeUp 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+      }
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(26px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ---------- Quick access tiles ---------- */
+      .qa-tile {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        background: #fff;
+        border: 1px solid rgba(125, 21, 25, 0.1);
+        border-radius: 1.25rem;
+        padding: 1.4rem;
+        box-shadow: 0 18px 50px -18px rgba(34, 26, 24, 0.28);
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease,
+          border-color 0.3s ease;
+      }
+      .qa-tile:hover {
+        transform: translateY(-6px);
+        border-color: rgba(250, 166, 26, 0.65);
+        box-shadow: 0 26px 60px -22px rgba(125, 21, 25, 0.45);
+      }
+      .qa-icon {
+        display: inline-flex;
+        height: 3rem;
+        width: 3rem;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.9rem;
+        background: #fbf4f4;
+        color: #7d1519;
+        font-size: 1.15rem;
+        transition:
+          background 0.3s,
+          color 0.3s;
+      }
+      .qa-tile:hover .qa-icon {
+        background: #7d1519;
+        color: #faa61a;
+      }
+      .qa-body {
+        display: flex;
+        flex-direction: column;
+      }
+      .qa-title {
+        font-weight: 700;
+        color: #221a18;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .qa-text {
+        margin-top: 0.3rem;
+        font-size: 0.875rem;
+        color: rgba(34, 26, 24, 0.65);
+        line-height: 1.5;
+      }
+
+      /* ---------- Typography helpers ---------- */
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: #b96a00;
+      }
+      .eyebrow::before {
+        content: "";
+        height: 2px;
+        width: 2.2rem;
+        background: #faa61a;
+        flex: none;
+      }
+      .eyebrow.justify-center {
+        justify-content: center;
+      }
+
+      .section-title {
+        font-family: "Playfair Display", Georgia, serif;
+        font-weight: 700;
+        font-size: clamp(1.9rem, 3.4vw, 2.9rem);
+        line-height: 1.15;
+        color: #221a18;
+        letter-spacing: -0.01em;
+      }
+      .gold-rule {
+        height: 3px;
+        width: 6rem;
+        background: linear-gradient(90deg, #faa61a, #ffd25e);
+        border-radius: 2px;
+      }
+
+      /* ---------- About goals ---------- */
+      .goal-item {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+      .goal-num {
+        flex: none;
+        display: inline-flex;
+        height: 2rem;
+        width: 2rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: #7d1519;
+        color: #ffd25e;
+        font-weight: 700;
+        font-size: 0.85rem;
+        font-family: "Playfair Display", Georgia, serif;
+      }
+      .goal-item p {
+        color: rgba(34, 26, 24, 0.78);
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+
+      /* ---------- Buttons ---------- */
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        border-radius: 9999px;
+        background: #7d1519;
+        color: #faf7f1;
+        padding: 0.85rem 1.6rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        box-shadow: 0 26px 60px -22px rgba(125, 21, 25, 0.45);
+        transition: all 0.3s ease;
+      }
+      .btn-primary:hover {
+        background: #faa61a;
+        color: #2e080a;
+        transform: translateY(-2px);
+      }
+      .btn-ghost {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        border-radius: 9999px;
+        border: 1.5px solid rgba(125, 21, 25, 0.3);
+        color: #7d1519;
+        padding: 0.85rem 1.6rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+      .btn-ghost:hover {
+        border-color: #7d1519;
+        background: #fbf4f4;
+        transform: translateY(-2px);
+      }
+      .btn-gold {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        border-radius: 9999px;
+        background: #faa61a;
+        color: #2e080a;
+        padding: 0.85rem 1.7rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        box-shadow: 0 26px 60px -22px rgba(250, 166, 26, 0.5);
+      }
+      .btn-gold:hover {
+        background: #ffd25e;
+        transform: translateY(-2px);
+      }
+
+      /* ---------- Service cards ---------- */
+      .svc-card {
+        position: relative;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid rgba(125, 21, 25, 0.1);
+        border-radius: 1.25rem;
+        padding: 1.8rem;
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+      }
+      .svc-card::before {
+        content: "";
+        position: absolute;
+        inset-inline: 0;
+        top: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #faa61a, #ffd25e);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.35s ease;
+      }
+      .svc-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 26px 60px -22px rgba(125, 21, 25, 0.35);
+      }
+      .svc-card:hover::before {
+        transform: scaleX(1);
+      }
+      .svc-num {
+        position: absolute;
+        top: 1.1rem;
+        right: 1.4rem;
+        font-family: "Playfair Display", Georgia, serif;
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: rgba(125, 21, 25, 0.12);
+      }
+      .svc-icon {
+        display: inline-flex;
+        height: 3.2rem;
+        width: 3.2rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        background: #7d1519;
+        color: #faa61a;
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+      }
+      .svc-card:hover .svc-icon {
+        transform: rotate(-6deg) scale(1.06);
+      }
+      .svc-title {
+        margin-top: 1.1rem;
+        font-family: "Playfair Display", Georgia, serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #221a18;
+      }
+      .svc-text {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: rgba(34, 26, 24, 0.68);
+        line-height: 1.6;
+      }
+      .svc-link {
+        margin-top: 1.1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #7d1519;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        transition: color 0.2s;
+      }
+      .svc-link:hover {
+        color: #b96a00;
+      }
+
+      /* ---------- Library cards ---------- */
+      .lib-card {
+        border-radius: 1.4rem;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid rgba(125, 21, 25, 0.1);
+        box-shadow: 0 10px 40px -12px rgba(34, 26, 24, 0.16);
+        transition:
+          transform 0.35s ease,
+          box-shadow 0.35s ease;
+      }
+      .lib-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 30px 70px -24px rgba(125, 21, 25, 0.45);
+      }
+      .lib-art {
+        height: 210px;
+        overflow: hidden;
+      }
+      .lib-art svg {
+        height: 100%;
+        width: 100%;
+        display: block;
+        transition: transform 0.6s ease;
+      }
+      .lib-card:hover .lib-art svg {
+        transform: scale(1.06);
+      }
+      .lib-body {
+        padding: 1.5rem 1.6rem 1.7rem;
+      }
+      .lib-title {
+        font-family: "Playfair Display", Georgia, serif;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #221a18;
+      }
+      .lib-text {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: rgba(34, 26, 24, 0.68);
+      }
+      .lib-link {
+        margin-top: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #7d1519;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition:
+          color 0.2s,
+          gap 0.2s;
+      }
+      .lib-link:hover {
+        color: #b96a00;
+        gap: 0.7rem;
+      }
+
+      /* ---------- Hours ---------- */
+      .hours-pattern {
+        background-image: radial-gradient(
+          circle at 1px 1px,
+          #faa61a 1px,
+          transparent 0
+        );
+        background-size: 26px 26px;
+      }
+      .hours-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(76, 13, 16, 0.55);
+        border: 1px solid rgba(250, 166, 26, 0.18);
+        border-radius: 1.1rem;
+        padding: 1.1rem 1.3rem;
+        transition:
+          border-color 0.3s,
+          transform 0.3s;
+      }
+      .hours-row:hover {
+        border-color: rgba(250, 166, 26, 0.5);
+        transform: translateX(4px);
+      }
+      .hours-ico {
+        display: inline-flex;
+        height: 2.8rem;
+        width: 2.8rem;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.8rem;
+        background: #faa61a;
+        color: #2e080a;
+        font-size: 1.05rem;
+      }
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-top: 0.35rem;
+        border-radius: 9999px;
+        padding: 0.2rem 0.7rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .status-pill::before {
+        content: "";
+        height: 0.45rem;
+        width: 0.45rem;
+        border-radius: 9999px;
+        background: currentColor;
+      }
+      .status-pill.is-open {
+        background: rgba(34, 197, 94, 0.16);
+        color: #86efac;
+      }
+      .status-pill.is-closed {
+        background: rgba(248, 113, 113, 0.14);
+        color: #fca5a5;
+      }
+
+      /* ---------- Accordion ---------- */
+      .acc-btn {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.25rem 0.4rem;
+        text-align: left;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 1.02rem;
+        color: #221a18;
+        transition: color 0.2s;
+      }
+      .acc-btn:hover,
+      .acc-btn[aria-expanded="true"] {
+        color: #7d1519;
+      }
+      .acc-ico {
+        color: #b96a00;
+        transition: transform 0.3s ease;
+      }
+      .acc-btn[aria-expanded="true"] .acc-ico {
+        transform: rotate(45deg);
+      }
+      .acc-panel {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease;
+      }
+      .acc-content {
+        padding: 0 0.4rem 1.4rem;
+      }
+      .policy-list {
+        list-style: none;
+      }
+      .policy-list li {
+        position: relative;
+        padding-left: 1.5rem;
+        margin-bottom: 0.6rem;
+        font-size: 0.92rem;
+        line-height: 1.65;
+        color: rgba(34, 26, 24, 0.75);
+      }
+      .policy-list li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.55rem;
+        height: 0.5rem;
+        width: 0.5rem;
+        border-radius: 9999px;
+        background: #faa61a;
+      }
+      .badge-note {
+        display: inline-block;
+        margin-right: 0.5rem;
+        border-radius: 0.45rem;
+        background: #fff3c8;
+        color: #945300;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      /* ---------- Announcements carousel ---------- */
+      .carousel-btn {
+        display: inline-flex;
+        height: 2.9rem;
+        width: 2.9rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        border: 1.5px solid rgba(125, 21, 25, 0.25);
+        color: #7d1519;
+        transition: all 0.25s ease;
+      }
+      .carousel-btn:hover:not(:disabled) {
+        background: #7d1519;
+        color: #faa61a;
+        border-color: #7d1519;
+      }
+      .carousel-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .ann-card {
+        flex: 0 0 auto;
+        width: 85vw;
+        max-width: 26rem;
+        background: #fff;
+        border-radius: 1.4rem;
+        overflow: hidden;
+        border: 1px solid rgba(125, 21, 25, 0.1);
+        box-shadow: 0 10px 40px -12px rgba(34, 26, 24, 0.16);
+        display: flex;
+        flex-direction: column;
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+      }
+      .ann-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 26px 60px -22px rgba(125, 21, 25, 0.35);
+      }
+      @media (min-width: 768px) {
+        .ann-card {
+          width: 24rem;
+        }
+      }
+      @media (min-width: 1024px) {
+        .ann-card {
+          width: calc((100% - 2.5rem) / 3);
+        }
+      }
+      .ann-art {
+        position: relative;
+        height: 180px;
+      }
+      .ann-art svg {
+        height: 100%;
+        width: 100%;
+        display: block;
+      }
+      .ann-tag {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        border-radius: 9999px;
+        background: rgba(46, 8, 10, 0.82);
+        color: #ffd25e;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        backdrop-filter: blur(4px);
+      }
+      .ann-body {
+        padding: 1.4rem 1.5rem 1.6rem;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+      }
+      .ann-date {
+        font-size: 0.75rem;
+        color: rgba(34, 26, 24, 0.55);
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .badge-sample {
+        margin-left: 0.6rem;
+        border-radius: 0.4rem;
+        background: #f6e6e6;
+        color: #932f33;
+        padding: 0.12rem 0.5rem;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+      .ann-title {
+        margin-top: 0.7rem;
+        font-family: "Playfair Display", Georgia, serif;
+        font-size: 1.12rem;
+        font-weight: 700;
+        line-height: 1.4;
+        color: #221a18;
+      }
+      .ann-text {
+        margin-top: 0.6rem;
+        font-size: 0.88rem;
+        line-height: 1.6;
+        color: rgba(34, 26, 24, 0.68);
+        flex: 1;
+      }
+      .ann-link {
+        margin-top: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #7d1519;
+        transition: color 0.2s;
+      }
+      .ann-link:hover {
+        color: #b96a00;
+      }
+      #annDots button {
+        height: 0.6rem;
+        width: 0.6rem;
+        border-radius: 9999px;
+        background: rgba(125, 21, 25, 0.25);
+        transition: all 0.25s ease;
+        cursor: pointer;
+      }
+      #annDots button.is-active {
+        width: 1.6rem;
+        background: #faa61a;
+      }
+
+      /* ---------- Digital resources ---------- */
+      .res-tile {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        border: 1px solid rgba(250, 166, 26, 0.25);
+        border-radius: 1rem;
+        padding: 0.95rem 1.1rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #faf7f1;
+        background: rgba(46, 8, 10, 0.35);
+        transition: all 0.25s ease;
+      }
+      .res-tile:hover {
+        background: #faa61a;
+        color: #2e080a;
+        border-color: #faa61a;
+        transform: translateY(-3px);
+      }
+      .res-tile i {
+        color: #faa61a;
+        transition: color 0.25s;
+        width: 1.2rem;
+        text-align: center;
+      }
+      .res-tile:hover i {
+        color: #2e080a;
+      }
+
+      /* ---------- Mission objectives ---------- */
+      .obj-list {
+        counter-reset: obj;
+        list-style: none;
+      }
+      .obj-list li {
+        position: relative;
+        padding-left: 3.2rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid rgba(125, 21, 25, 0.12);
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: rgba(34, 26, 24, 0.78);
+      }
+      .obj-list li::before {
+        counter-increment: obj;
+        content: counter(obj, decimal-leading-zero);
+        position: absolute;
+        left: 0;
+        top: 1.05rem;
+        font-family: "Playfair Display", Georgia, serif;
+        font-weight: 700;
+        font-size: 1.3rem;
+        color: #faa61a;
+      }
+
+      /* ---------- Contact ---------- */
+      .contact-card {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        background: #fff;
+        border: 1px solid rgba(125, 21, 25, 0.1);
+        border-radius: 1.1rem;
+        padding: 1.1rem 1.3rem;
+        transition:
+          transform 0.25s ease,
+          box-shadow 0.25s ease;
+      }
+      .contact-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 16px 40px -18px rgba(125, 21, 25, 0.3);
+      }
+      .contact-ico {
+        display: inline-flex;
+        height: 2.9rem;
+        width: 2.9rem;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.85rem;
+        background: #fbf4f4;
+        color: #7d1519;
+        font-size: 1.1rem;
+      }
+
+      /* ---------- Footer ---------- */
+      .footer-head {
+        font-family: "Playfair Display", Georgia, serif;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #faf7f1;
+        position: relative;
+        padding-bottom: 0.6rem;
+      }
+      .footer-head::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 2px;
+        width: 2rem;
+        background: #faa61a;
+      }
+      .footer-link {
+        color: rgba(250, 247, 241, 0.72);
+        transition:
+          color 0.2s,
+          padding-left 0.2s;
+      }
+      .footer-link:hover {
+        color: #ffd25e;
+        padding-left: 0.3rem;
+      }
+      .social-btn {
+        display: inline-flex;
+        height: 2.5rem;
+        width: 2.5rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        border: 1px solid rgba(250, 247, 241, 0.25);
+        color: rgba(250, 247, 241, 0.8);
+        transition: all 0.25s ease;
+      }
+      .social-btn:hover {
+        background: #faa61a;
+        border-color: #faa61a;
+        color: #2e080a;
+        transform: translateY(-3px);
+      }
+
+      /* ---------- Scroll reveal ---------- */
+      [data-reveal] {
+        opacity: 0;
+        transform: translateY(28px);
+        transition:
+          opacity 0.7s ease,
+          transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+      }
+      [data-reveal].is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ---------- Reduced motion ---------- */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .kenburns,
+        .hero-anim {
+          animation: none;
+        }
+        .hero-anim {
+          opacity: 1;
+        }
+        [data-reveal] {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================================================
+index.html — USANT University Library Homepage
+University of Saint Anthony · Iriga City, Philippines
+Sections: A.Topbar B.Nav C.Hero D.QuickAccess E.About
+F.Services G.Libraries H.Hours I.Policies
+J.Announcements K.Digital L.Mission M.Contact N.Footer
+============================================================ -->
+    <!doctype html>
+    <html lang="en" class="scroll-smooth">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+          USANT University Library | University of Saint Anthony, Iriga City
+        </title>
+        <meta
+          name="description"
+          content="The official information portal of the University of Saint Anthony (USANT) Library — collections, services, operating hours, policies, announcements and access to the USANT Library System."
+        />
+        <meta
+          name="keywords"
+          content="USANT, University of Saint Anthony, USANT Library, Iriga City, library catalog, Koha, academic library"
+        />
+        <meta property="og:title" content="USANT University Library" />
+        <meta
+          property="og:description"
+          content="Discover knowledge. Inspire excellence. The learning hub of the University of Saint Anthony, Iriga City."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://www.usant.edu.ph/library" />
+        <meta
+          property="og:image"
+          content="https://www.usant.edu.ph/images/banner/library-banner.jpg"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          href="https://www.usant.edu.ph/images/usant_logo_new.png"
+        />
+
+        <!-- Fonts (Fontsource CDN): Inter + Playfair Display -->
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5/400.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5/500.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5/600.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5/700.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/500.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/600.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/700.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/800.css"
+        />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/playfair-display@5/600-italic.css"
+        />
+
+        <!-- Icons: Font Awesome 6 -->
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        />
+
+        <!-- Tailwind CSS -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  maroon: {
+                    50: "#FBF4F4",
+                    100: "#F6E6E6",
+                    200: "#ECCFCF",
+                    300: "#DCA9AA",
+                    400: "#C67678",
+                    500: "#AC4A4D",
+                    600: "#932F33",
+                    700: "#7D1519",
+                    800: "#661114",
+                    900: "#4C0D10",
+                    950: "#2E080A",
+                  },
+                  gold: {
+                    50: "#FFFAEB",
+                    100: "#FFF3C8",
+                    200: "#FFE59A",
+                    300: "#FFD25E",
+                    400: "#FAA61A",
+                    500: "#E08600",
+                    600: "#B96A00",
+                    700: "#945300",
+                    800: "#7A4300",
+                    900: "#683800",
+                  },
+                  cream: "#FAF7F1",
+                  parchment: "#F3ECE1",
+                  ink: "#221A18",
+                },
+                fontFamily: {
+                  sans: [
+                    "Inter",
+                    "ui-sans-serif",
+                    "system-ui",
+                    "Segoe UI",
+                    "sans-serif",
+                  ],
+                  display: ['"Playfair Display"', "Georgia", "serif"],
+                },
+                boxShadow: {
+                  card: "0 10px 40px -12px rgba(34,26,24,.16)",
+                  lift: "0 26px 60px -22px rgba(125,21,25,.45)",
+                  tile: "0 18px 50px -18px rgba(34,26,24,.28)",
+                },
+                maxWidth: { "8xl": "88rem" },
+              },
+            },
+          };
+        </script>
+
+        <!-- Custom styles -->
+        <link rel="stylesheet" href="css/styles.css" />
+
+        <!-- SEO: structured data -->
+        <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Library",
+            "name": "University of Saint Anthony Library",
+            "alternateName": "USANT Library",
+            "url": "https://www.usant.edu.ph/library",
+            "parentOrganization": {
+              "@type": "CollegeOrUniversity",
+              "name": "University of Saint Anthony",
+              "url": "https://www.usant.edu.ph/"
+            },
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "Dr. Ortega St., San Miguel",
+              "addressLocality": "Iriga City",
+              "postalCode": "4431",
+              "addressCountry": "PH"
+            },
+            "telephone": "+63-54-205-1234",
+            "email": "info@usant.edu.ph"
+          }
+        </script>
+      </head>
+
+      <body class="bg-cream text-ink font-sans antialiased overflow-x-clip">
+        <a href="#main" class="skip-link">Skip to main content</a>
+
+        <!-- ============ A. TOP INFORMATION BAR ============ -->
+        <div class="bg-maroon-950 text-cream/90 text-[13px]">
+          <div
+            class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 h-10 flex items-center justify-between gap-4"
+          >
+            <p
+              class="font-semibold tracking-wide flex items-center gap-2 truncate"
+            >
+              <i
+                class="fa-solid fa-shield-halved text-gold-400"
+                aria-hidden="true"
+              ></i>
+              University of Saint Anthony
+            </p>
+            <div class="hidden md:flex items-center gap-6">
+              <span class="flex items-center gap-2"
+                ><i
+                  class="fa-solid fa-location-dot text-gold-400"
+                  aria-hidden="true"
+                ></i
+                >Dr. Ortega St., San Miguel, Iriga City 4431</span
+              >
+              <a
+                href="tel:+63542051234"
+                class="flex items-center gap-2 hover:text-gold-300 transition-colors"
+                ><i
+                  class="fa-solid fa-phone text-gold-400"
+                  aria-hidden="true"
+                ></i
+                >(054) 205-1234</a
+              >
+              <a
+                href="mailto:info@usant.edu.ph"
+                class="flex items-center gap-2 hover:text-gold-300 transition-colors"
+                ><i
+                  class="fa-solid fa-envelope text-gold-400"
+                  aria-hidden="true"
+                ></i
+                >info@usant.edu.ph</a
+              >
+            </div>
+            <a
+              href="https://www.usant.edu.ph/"
+              target="_blank"
+              rel="noopener"
+              class="md:hidden flex items-center gap-2 hover:text-gold-300"
+              ><i class="fa-solid fa-globe text-gold-400" aria-hidden="true"></i
+              >usant.edu.ph</a
+            >
+          </div>
+        </div>
+
+        <!-- ============ B. MAIN NAVIGATION ============ -->
+        <header
+          id="siteHeader"
+          class="sticky top-0 z-50 bg-cream/95 backdrop-blur border-b border-maroon-900/10 transition-shadow duration-300"
+        >
+          <nav
+            aria-label="Primary"
+            class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8"
+          >
+            <div class="flex items-center justify-between h-[76px] gap-4">
+              <!-- Brand: official USANT seal + lockup -->
+              <a
+                href="#home"
+                class="flex items-center gap-3 shrink-0 group"
+                aria-label="USANT University Library — home"
+              >
+                <img
+                  src="https://www.usant.edu.ph/images/usant_logo_new.png"
+                  alt="Official seal of the University of Saint Anthony"
+                  class="h-12 w-12 object-contain transition-transform duration-300 group-hover:scale-105"
+                  width="526"
+                  height="526"
+                />
+                <span class="leading-tight">
+                  <span
+                    class="block text-[11px] font-semibold tracking-[0.18em] uppercase text-maroon-700"
+                    >University of Saint Anthony</span
+                  >
+                  <span
+                    class="block font-display text-xl md:text-2xl font-bold text-ink tracking-tight"
+                    >University Library</span
+                  >
+                </span>
+              </a>
+
+              <!-- Desktop links -->
+              <ul
+                class="hidden lg:flex items-center gap-1 text-[15px] font-medium"
+              >
+                <li><a class="nav-link" href="#home">Home</a></li>
+                <li><a class="nav-link" href="#about">About the Library</a></li>
+                <li>
+                  <a class="nav-link" href="#services">Library Services</a>
+                </li>
+
+                <li class="relative group">
+                  <button
+                    type="button"
+                    class="nav-link dd-toggle"
+                    aria-expanded="false"
+                    aria-haspopup="true"
+                    aria-controls="ddLibraries"
+                  >
+                    Our Libraries
+                    <i
+                      class="fa-solid fa-chevron-down text-[10px] ml-1 transition-transform duration-200 group-hover:rotate-180"
+                      aria-hidden="true"
+                    ></i>
+                  </button>
+                  <ul id="ddLibraries" class="dropdown" role="menu">
+                    <li>
+                      <a role="menuitem" href="#lib-university"
+                        >University / College Library</a
+                      >
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#lib-graduate"
+                        >Graduate School Library</a
+                      >
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#lib-jhs"
+                        >Junior High School Library</a
+                      >
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#lib-shs"
+                        >Senior High School Library</a
+                      >
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#lib-grade"
+                        >Grade School Library</a
+                      >
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#lib-av">Audio-Visual Room</a>
+                    </li>
+                  </ul>
+                </li>
+
+                <li class="relative group">
+                  <button
+                    type="button"
+                    class="nav-link dd-toggle"
+                    aria-expanded="false"
+                    aria-haspopup="true"
+                    aria-controls="ddResources"
+                  >
+                    Resources
+                    <i
+                      class="fa-solid fa-chevron-down text-[10px] ml-1 transition-transform duration-200 group-hover:rotate-180"
+                      aria-hidden="true"
+                    ></i>
+                  </button>
+                  <ul id="ddResources" class="dropdown" role="menu">
+                    <li>
+                      <a
+                        role="menuitem"
+                        href="https://library.usant.edu.ph/"
+                        target="_blank"
+                        rel="noopener"
+                        >Online Library Catalog
+                        <i
+                          class="fa-solid fa-arrow-up-right-from-square text-[10px] ml-1 opacity-60"
+                          aria-hidden="true"
+                        ></i
+                      ></a>
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#resources">Digital Resources</a>
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#policies">Library Policies</a>
+                    </li>
+                    <li>
+                      <a role="menuitem" href="#hours">Library Schedule</a>
+                    </li>
+                  </ul>
+                </li>
+
+                <li>
+                  <a class="nav-link" href="#announcements">Announcements</a>
+                </li>
+                <li><a class="nav-link" href="#contact">Contact Us</a></li>
+              </ul>
+
+              <div class="flex items-center gap-3">
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="hidden sm:inline-flex items-center gap-2 rounded-full bg-maroon-700 px-5 py-2.5 text-sm font-semibold text-cream shadow-lift transition-all duration-300 hover:bg-gold-400 hover:text-maroon-950 hover:-translate-y-0.5"
+                >
+                  <i
+                    class="fa-solid fa-book-open-reader"
+                    aria-hidden="true"
+                  ></i>
+                  Access Library System
+                </a>
+                <button
+                  id="menuBtn"
+                  type="button"
+                  class="lg:hidden inline-flex h-11 w-11 items-center justify-center rounded-xl border border-maroon-900/15 text-maroon-800 hover:bg-maroon-50 transition-colors"
+                  aria-expanded="false"
+                  aria-controls="mobileMenu"
+                  aria-label="Open navigation menu"
+                >
+                  <i class="fa-solid fa-bars text-lg" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Mobile menu -->
+          <div
+            id="mobileMenu"
+            class="lg:hidden hidden border-t border-maroon-900/10 bg-cream shadow-card"
+          >
+            <ul
+              class="px-4 py-4 space-y-1 text-[15px] font-medium max-h-[70vh] overflow-y-auto"
+            >
+              <li><a class="m-link" href="#home">Home</a></li>
+              <li><a class="m-link" href="#about">About the Library</a></li>
+              <li><a class="m-link" href="#services">Library Services</a></li>
+              <li>
+                <button
+                  type="button"
+                  class="m-link w-full flex items-center justify-between m-sub-toggle"
+                  aria-expanded="false"
+                  aria-controls="mLibraries"
+                >
+                  Our Libraries
+                  <i
+                    class="fa-solid fa-chevron-down text-xs transition-transform"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+                <ul
+                  id="mLibraries"
+                  class="m-sub hidden pl-4 pr-2 py-1 space-y-1 border-l-2 border-gold-400/60 ml-3"
+                >
+                  <li>
+                    <a class="m-link text-sm" href="#lib-university"
+                      >University / College Library</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#lib-graduate"
+                      >Graduate School Library</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#lib-jhs"
+                      >Junior High School Library</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#lib-shs"
+                      >Senior High School Library</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#lib-grade"
+                      >Grade School Library</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#lib-av"
+                      >Audio-Visual Room</a
+                    >
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  class="m-link w-full flex items-center justify-between m-sub-toggle"
+                  aria-expanded="false"
+                  aria-controls="mResources"
+                >
+                  Resources
+                  <i
+                    class="fa-solid fa-chevron-down text-xs transition-transform"
+                    aria-hidden="true"
+                  ></i>
+                </button>
+                <ul
+                  id="mResources"
+                  class="m-sub hidden pl-4 pr-2 py-1 space-y-1 border-l-2 border-gold-400/60 ml-3"
+                >
+                  <li>
+                    <a
+                      class="m-link text-sm"
+                      href="https://library.usant.edu.ph/"
+                      target="_blank"
+                      rel="noopener"
+                      >Online Library Catalog</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#resources"
+                      >Digital Resources</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#policies"
+                      >Library Policies</a
+                    >
+                  </li>
+                  <li>
+                    <a class="m-link text-sm" href="#hours">Library Schedule</a>
+                  </li>
+                </ul>
+              </li>
+              <li><a class="m-link" href="#announcements">Announcements</a></li>
+              <li><a class="m-link" href="#contact">Contact Us</a></li>
+              <li class="pt-2">
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="flex items-center justify-center gap-2 rounded-full bg-maroon-700 px-5 py-3 text-sm font-semibold text-cream"
+                >
+                  <i
+                    class="fa-solid fa-book-open-reader"
+                    aria-hidden="true"
+                  ></i>
+                  Access Library System
+                </a>
+              </li>
+            </ul>
+          </div>
+        </header>
+
+        <main id="main">
+          <!-- ============ C. HERO ============ -->
+          <section
+            id="home"
+            class="relative isolate overflow-hidden bg-maroon-950 text-cream"
+          >
+            <div class="absolute inset-0 -z-10 overflow-hidden">
+              <img
+                src="https://www.usant.edu.ph/images/banner/library-banner.jpg"
+                alt="Interior of the University of Saint Anthony Library with bookshelves and reading spaces"
+                class="kenburns h-full w-full object-cover"
+                fetchpriority="high"
+              />
+              <div
+                class="absolute inset-0 bg-gradient-to-r from-maroon-950/95 via-maroon-950/80 to-maroon-900/40"
+              ></div>
+              <div
+                class="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-maroon-950/90 to-transparent"
+              ></div>
+            </div>
+
+            <div
+              class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-40 md:pt-28 md:pb-48"
+            >
+              <div class="max-w-3xl">
+                <p
+                  class="hero-anim flex items-center gap-3 text-[12px] md:text-sm font-semibold tracking-[0.28em] uppercase text-gold-300"
+                  style="animation-delay: 0.1s"
+                >
+                  <span class="h-px w-10 bg-gold-400" aria-hidden="true"></span>
+                  University of Saint Anthony
+                </p>
+                <h1
+                  class="hero-anim mt-5 font-display font-bold text-4xl sm:text-5xl lg:text-6xl leading-[1.08] tracking-tight"
+                  style="animation-delay: 0.25s"
+                >
+                  Discover Knowledge.<br />
+                  <span class="italic text-gold-300">Inspire Excellence.</span>
+                </h1>
+                <p
+                  class="hero-anim mt-6 text-base md:text-lg text-cream/85 leading-relaxed max-w-2xl"
+                  style="animation-delay: 0.4s"
+                >
+                  Welcome to the University of Saint Anthony Library. Your
+                  gateway to knowledge, research, innovation, and lifelong
+                  learning. Explore our academic resources, discover new
+                  opportunities, and access the information you need to succeed.
+                </p>
+
+                <div
+                  class="hero-anim mt-9 flex flex-wrap items-center gap-4"
+                  style="animation-delay: 0.55s"
+                >
+                  <a
+                    href="#about"
+                    class="inline-flex items-center gap-2 rounded-full bg-gold-400 px-7 py-3.5 text-sm font-bold text-maroon-950 shadow-lift transition-all duration-300 hover:bg-gold-300 hover:-translate-y-0.5"
+                  >
+                    Explore Our Library
+                    <i
+                      class="fa-solid fa-arrow-down-long"
+                      aria-hidden="true"
+                    ></i>
+                  </a>
+                  <a
+                    href="https://library.usant.edu.ph/"
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center gap-2 rounded-full border border-cream/40 px-7 py-3.5 text-sm font-semibold text-cream transition-all duration-300 hover:border-gold-300 hover:text-gold-300 hover:-translate-y-0.5"
+                  >
+                    Access Library Catalog
+                    <i
+                      class="fa-solid fa-arrow-up-right-from-square text-xs"
+                      aria-hidden="true"
+                    ></i>
+                  </a>
+                </div>
+
+                <!-- Catalog quick search (submits to the official Koha OPAC) -->
+                <form
+                  class="hero-anim mt-10 max-w-xl"
+                  style="animation-delay: 0.7s"
+                  action="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                  method="get"
+                  target="_blank"
+                  role="search"
+                >
+                  <label for="catalogQuery" class="sr-only"
+                    >Search the USANT library catalog</label
+                  >
+                  <div
+                    class="flex items-stretch rounded-full bg-cream/95 p-1.5 shadow-tile focus-within:ring-2 focus-within:ring-gold-400"
+                  >
+                    <span class="pl-4 pr-3 self-center text-maroon-700"
+                      ><i
+                        class="fa-solid fa-magnifying-glass"
+                        aria-hidden="true"
+                      ></i
+                    ></span>
+                    <input
+                      id="catalogQuery"
+                      name="q"
+                      type="search"
+                      placeholder="Search books, journals, theses in the catalog…"
+                      class="w-full bg-transparent py-2.5 pr-2 text-sm text-ink placeholder-ink/50 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      class="shrink-0 rounded-full bg-maroon-700 px-5 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-maroon-800"
+                    >
+                      Search Catalog
+                    </button>
+                  </div>
+                  <p class="mt-2 pl-5 text-xs text-cream/60">
+                    Searches the official USANT Library System (Koha OPAC).
+                  </p>
+                </form>
+              </div>
+            </div>
+
+            <a
+              href="#quick"
+              class="absolute bottom-24 md:bottom-28 left-1/2 -translate-x-1/2 text-cream/70 hover:text-gold-300 transition-colors"
+              aria-label="Scroll to quick access"
+            >
+              <i
+                class="fa-solid fa-chevron-down animate-bounce text-xl"
+                aria-hidden="true"
+              ></i>
+            </a>
+          </section>
+
+          <!-- ============ D. QUICK ACCESS ============ -->
+          <section
+            id="quick"
+            class="relative z-10 -mt-24 md:-mt-28 pb-4"
+            aria-label="Quick access"
+          >
+            <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5"
+              >
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  data-reveal
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i
+                      class="fa-solid fa-magnifying-glass"
+                      aria-hidden="true"
+                    ></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title"
+                      >Online Library Catalog
+                      <i
+                        class="fa-solid fa-arrow-up-right-from-square text-[10px] opacity-60"
+                        aria-hidden="true"
+                      ></i
+                    ></span>
+                    <span class="qa-text"
+                      >Search and discover available library materials.</span
+                    >
+                  </span>
+                </a>
+
+                <a
+                  href="#resources"
+                  data-reveal
+                  data-reveal-delay="80"
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i class="fa-solid fa-laptop-file" aria-hidden="true"></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title">Digital Resources</span>
+                    <span class="qa-text"
+                      >Discover available electronic learning and research
+                      resources.</span
+                    >
+                  </span>
+                </a>
+
+                <a
+                  href="#services"
+                  data-reveal
+                  data-reveal-delay="160"
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i
+                      class="fa-solid fa-handshake-angle"
+                      aria-hidden="true"
+                    ></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title">Library Services</span>
+                    <span class="qa-text"
+                      >Explore the services available to students and
+                      faculty.</span
+                    >
+                  </span>
+                </a>
+
+                <a
+                  href="#policies"
+                  data-reveal
+                  data-reveal-delay="240"
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i
+                      class="fa-solid fa-scale-balanced"
+                      aria-hidden="true"
+                    ></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title">Library Policies</span>
+                    <span class="qa-text"
+                      >Learn about library rules and borrowing guidelines.</span
+                    >
+                  </span>
+                </a>
+
+                <a
+                  href="#hours"
+                  data-reveal
+                  data-reveal-delay="320"
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title">Library Schedule</span>
+                    <span class="qa-text">Check library operating hours.</span>
+                  </span>
+                </a>
+
+                <a
+                  href="#contact"
+                  data-reveal
+                  data-reveal-delay="400"
+                  class="qa-tile group"
+                >
+                  <span class="qa-icon"
+                    ><i class="fa-solid fa-flask" aria-hidden="true"></i
+                  ></span>
+                  <span class="qa-body">
+                    <span class="qa-title">Research Assistance</span>
+                    <span class="qa-text"
+                      >Find support for academic research and information
+                      needs.</span
+                    >
+                  </span>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ E. ABOUT ============ -->
+          <section id="about" class="py-20 md:py-28 scroll-mt-24">
+            <div
+              class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-14 lg:gap-20 items-center"
+            >
+              <div class="relative" data-reveal>
+                <div
+                  class="absolute -top-5 -left-5 h-28 w-28 border-t-4 border-l-4 border-gold-400 rounded-tl-3xl"
+                  aria-hidden="true"
+                ></div>
+                <div
+                  class="absolute -bottom-5 -right-5 h-28 w-28 border-b-4 border-r-4 border-maroon-700 rounded-br-3xl"
+                  aria-hidden="true"
+                ></div>
+                <img
+                  src="https://www.usant.edu.ph/images/banner/library-banner.jpg"
+                  alt="Students and collections inside the USANT University Library"
+                  loading="lazy"
+                  class="relative rounded-3xl shadow-tile w-full object-cover aspect-[4/3] lg:aspect-[3/4] max-h-[560px]"
+                />
+                <div
+                  class="absolute -bottom-8 left-6 md:left-10 rounded-2xl bg-maroon-700 text-cream px-6 py-4 shadow-lift"
+                >
+                  <p class="font-display text-3xl font-bold text-gold-300">
+                    1947
+                  </p>
+                  <p class="text-xs tracking-wide uppercase text-cream/80">
+                    Serving Anthonians since
+                  </p>
+                </div>
+              </div>
+
+              <div data-reveal data-reveal-delay="120">
+                <p class="eyebrow">About the USANT Library</p>
+                <h2 class="section-title mt-3">
+                  A central learning hub for the Anthonian community
+                </h2>
+                <p class="mt-5 text-ink/75 leading-relaxed">
+                  The USANT Library is a central learning hub that supports
+                  academic excellence through print and digital collections,
+                  research support, and welcoming study spaces. It helps the
+                  university community access knowledge, information, and
+                  services both on campus and online.
+                </p>
+
+                <ul class="mt-8 space-y-4">
+                  <li class="goal-item">
+                    <span class="goal-num">1</span>
+                    <p>
+                      Provide library materials and services responsive to the
+                      needs of the USANT community.
+                    </p>
+                  </li>
+                  <li class="goal-item">
+                    <span class="goal-num">2</span>
+                    <p>Ensure maximum accessibility to library resources.</p>
+                  </li>
+                  <li class="goal-item">
+                    <span class="goal-num">3</span>
+                    <p>
+                      Maintain comfortable, convenient, safe, accessible, and
+                      well-maintained facilities.
+                    </p>
+                  </li>
+                  <li class="goal-item">
+                    <span class="goal-num">4</span>
+                    <p>Develop effective and committed library personnel.</p>
+                  </li>
+                  <li class="goal-item">
+                    <span class="goal-num">5</span>
+                    <p>
+                      Improve access to collections and services through
+                      automated library systems.
+                    </p>
+                  </li>
+                </ul>
+
+                <div class="mt-9 flex flex-wrap gap-4">
+                  <a
+                    href="https://www.usant.edu.ph/library"
+                    target="_blank"
+                    rel="noopener"
+                    class="btn-primary"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                  <a href="#mission" class="btn-ghost"
+                    >Mission &amp; Objectives</a
+                  >
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ F. SERVICES ============ -->
+          <section
+            id="services"
+            class="py-20 md:py-28 bg-parchment/70 scroll-mt-24"
+          >
+            <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="max-w-2xl mx-auto text-center" data-reveal>
+                <p class="eyebrow justify-center">Library Services</p>
+                <h2 class="section-title mt-3">
+                  Services that support your academic journey
+                </h2>
+                <p class="mt-4 text-ink/70">
+                  From circulation to research support, the library team assists
+                  students, faculty, and staff in finding and using the
+                  resources they need.
+                </p>
+              </div>
+
+              <div
+                class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
+              >
+                <article data-reveal class="svc-card group">
+                  <span class="svc-num">01</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Circulation Services</h3>
+                  <p class="svc-text">
+                    Borrowing, returning, and managing library materials.
+                  </p>
+                  <a href="#policies" class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+                <article
+                  data-reveal
+                  data-reveal-delay="80"
+                  class="svc-card group"
+                >
+                  <span class="svc-num">02</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-book-open" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Reference Services</h3>
+                  <p class="svc-text">
+                    Assistance in finding information and academic resources.
+                  </p>
+                  <a href="#contact" class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+                <article
+                  data-reveal
+                  data-reveal-delay="160"
+                  class="svc-card group"
+                >
+                  <span class="svc-num">03</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-flask" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Research Assistance</h3>
+                  <p class="svc-text">
+                    Support for students and faculty conducting academic
+                    research.
+                  </p>
+                  <a href="#contact" class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+                <article
+                  data-reveal
+                  data-reveal-delay="240"
+                  class="svc-card group"
+                >
+                  <span class="svc-num">04</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-armchair" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Reading and Study Areas</h3>
+                  <p class="svc-text">
+                    Spaces for individual learning and collaborative activities.
+                  </p>
+                  <a href="#libraries" class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+                <article
+                  data-reveal
+                  data-reveal-delay="320"
+                  class="svc-card group"
+                >
+                  <span class="svc-num">05</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-photo-film" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Audio-Visual Services</h3>
+                  <p class="svc-text">
+                    Access to educational media and audio-visual resources.
+                  </p>
+                  <a href="#lib-av" class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-right-long text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+                <article
+                  data-reveal
+                  data-reveal-delay="400"
+                  class="svc-card group"
+                >
+                  <span class="svc-num">06</span>
+                  <span class="svc-icon"
+                    ><i class="fa-solid fa-laptop" aria-hidden="true"></i
+                  ></span>
+                  <h3 class="svc-title">Digital Library Access</h3>
+                  <p class="svc-text">
+                    Access to the existing online library system and available
+                    digital materials.
+                  </p>
+                  <a
+                    href="https://library.usant.edu.ph/"
+                    target="_blank"
+                    rel="noopener"
+                    class="svc-link"
+                    >Learn More
+                    <i
+                      class="fa-solid fa-arrow-up-right-from-square text-xs transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ G. OUR LIBRARIES ============ -->
+          <section id="libraries" class="py-20 md:py-28 scroll-mt-24">
+            <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div
+                class="flex flex-col md:flex-row md:items-end md:justify-between gap-6"
+                data-reveal
+              >
+                <div class="max-w-2xl">
+                  <p class="eyebrow">Our Libraries</p>
+                  <h2 class="section-title mt-3">
+                    One library system, every level of learning
+                  </h2>
+                  <p class="mt-4 text-ink/70">
+                    From grade school to graduate studies, each USANT library
+                    section curates collections matched to its learners.
+                  </p>
+                </div>
+                <a
+                  href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                  target="_blank"
+                  rel="noopener"
+                  class="btn-ghost shrink-0"
+                  >View Library Directory
+                  <i
+                    class="fa-solid fa-arrow-up-right-from-square text-xs"
+                    aria-hidden="true"
+                  ></i
+                ></a>
+              </div>
+
+              <div
+                class="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6"
+              >
+                <!-- University / College Library -->
+                <article
+                  id="lib-university"
+                  data-reveal
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of the university library stacks"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gU" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#4C0D10" />
+                          <stop offset="1" stop-color="#7D1519" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gU)" />
+                      <circle
+                        cx="320"
+                        cy="86"
+                        r="46"
+                        fill="#FAA61A"
+                        opacity=".16"
+                      />
+                      <circle
+                        cx="320"
+                        cy="86"
+                        r="26"
+                        fill="#FAA61A"
+                        opacity=".28"
+                      />
+                      <line
+                        x1="320"
+                        y1="0"
+                        x2="320"
+                        y2="60"
+                        stroke="#FFD25E"
+                        stroke-width="3"
+                      />
+                      <path d="M300 60 h40 l-8 18 h-24 z" fill="#FFD25E" />
+                      <g fill="#3A0A0C">
+                        <rect x="40" y="120" width="120" height="240" rx="6" />
+                        <rect x="480" y="120" width="120" height="240" rx="6" />
+                        <rect x="200" y="150" width="90" height="210" rx="6" />
+                        <rect x="350" y="150" width="90" height="210" rx="6" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="52" y="136" width="10" height="40" />
+                        <rect x="66" y="142" width="8" height="34" />
+                        <rect x="80" y="132" width="12" height="44" />
+                        <rect x="98" y="146" width="9" height="30" />
+                        <rect x="112" y="138" width="10" height="38" />
+                        <rect x="128" y="144" width="8" height="32" />
+                        <rect x="492" y="136" width="10" height="40" />
+                        <rect x="506" y="144" width="9" height="32" />
+                        <rect x="520" y="132" width="12" height="44" />
+                        <rect x="538" y="142" width="8" height="34" />
+                        <rect x="552" y="136" width="10" height="40" />
+                        <rect x="568" y="146" width="9" height="30" />
+                      </g>
+                      <g fill="#F6E6E6" opacity=".85">
+                        <rect x="52" y="200" width="9" height="36" />
+                        <rect x="66" y="206" width="11" height="30" />
+                        <rect x="82" y="198" width="8" height="38" />
+                        <rect x="96" y="208" width="10" height="28" />
+                        <rect x="112" y="200" width="9" height="36" />
+                        <rect x="492" y="200" width="9" height="36" />
+                        <rect x="506" y="208" width="10" height="28" />
+                        <rect x="522" y="198" width="8" height="38" />
+                        <rect x="536" y="206" width="11" height="30" />
+                        <rect x="552" y="200" width="9" height="36" />
+                      </g>
+                      <g fill="#C67678">
+                        <rect x="212" y="166" width="8" height="34" />
+                        <rect x="226" y="172" width="10" height="28" />
+                        <rect x="242" y="164" width="9" height="36" />
+                        <rect x="256" y="174" width="8" height="26" />
+                        <rect x="362" y="166" width="8" height="34" />
+                        <rect x="376" y="174" width="10" height="26" />
+                        <rect x="392" y="164" width="9" height="36" />
+                        <rect x="406" y="170" width="8" height="30" />
+                      </g>
+                      <g fill="#FAA61A" opacity=".9">
+                        <rect x="212" y="230" width="9" height="32" />
+                        <rect x="228" y="236" width="8" height="26" />
+                        <rect x="242" y="228" width="10" height="34" />
+                        <rect x="362" y="230" width="9" height="32" />
+                        <rect x="378" y="236" width="8" height="26" />
+                        <rect x="392" y="228" width="10" height="34" />
+                      </g>
+                      <rect
+                        x="0"
+                        y="356"
+                        width="640"
+                        height="44"
+                        fill="#2E080A"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="286" cy="300" r="14" />
+                        <rect x="270" y="312" width="32" height="46" rx="10" />
+                        <circle cx="356" cy="300" r="14" />
+                        <rect x="340" y="312" width="32" height="46" rx="10" />
+                      </g>
+                      <rect
+                        x="250"
+                        y="330"
+                        width="140"
+                        height="10"
+                        rx="5"
+                        fill="#FFD25E"
+                      />
+                      <rect
+                        x="262"
+                        y="340"
+                        width="8"
+                        height="20"
+                        fill="#FFD25E"
+                      />
+                      <rect
+                        x="370"
+                        y="340"
+                        width="8"
+                        height="20"
+                        fill="#FFD25E"
+                      />
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">University / College Library</h3>
+                    <p class="lib-text">
+                      A central collection supporting the instructional,
+                      academic, and research requirements of university students
+                      and faculty.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <!-- Graduate School Library -->
+                <article
+                  id="lib-graduate"
+                  data-reveal
+                  data-reveal-delay="80"
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of graduate study carrels"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gG" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0" stop-color="#2E080A" />
+                          <stop offset="1" stop-color="#661114" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gG)" />
+                      <g fill="#3A0A0C">
+                        <rect x="60" y="60" width="520" height="26" rx="4" />
+                        <rect x="60" y="100" width="520" height="26" rx="4" />
+                      </g>
+                      <g fill="#F6E6E6" opacity=".8">
+                        <rect x="76" y="66" width="8" height="16" />
+                        <rect x="90" y="68" width="7" height="14" />
+                        <rect x="104" y="64" width="9" height="18" />
+                        <rect x="120" y="68" width="7" height="14" />
+                        <rect x="134" y="66" width="8" height="16" />
+                        <rect x="300" y="66" width="8" height="16" />
+                        <rect x="314" y="64" width="9" height="18" />
+                        <rect x="330" y="68" width="7" height="14" />
+                        <rect x="470" y="66" width="8" height="16" />
+                        <rect x="484" y="68" width="7" height="14" />
+                        <rect x="498" y="64" width="9" height="18" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="160" y="104" width="8" height="18" />
+                        <rect x="174" y="106" width="7" height="16" />
+                        <rect x="188" y="102" width="9" height="20" />
+                        <rect x="360" y="104" width="8" height="18" />
+                        <rect x="374" y="106" width="7" height="16" />
+                        <rect x="388" y="102" width="9" height="20" />
+                        <rect x="520" y="104" width="8" height="18" />
+                      </g>
+                      <g>
+                        <rect
+                          x="90"
+                          y="200"
+                          width="140"
+                          height="120"
+                          rx="8"
+                          fill="#4C0D10"
+                        />
+                        <rect
+                          x="250"
+                          y="200"
+                          width="140"
+                          height="120"
+                          rx="8"
+                          fill="#4C0D10"
+                        />
+                        <rect
+                          x="410"
+                          y="200"
+                          width="140"
+                          height="120"
+                          rx="8"
+                          fill="#4C0D10"
+                        />
+                      </g>
+                      <g fill="#FFD25E">
+                        <circle cx="160" cy="188" r="10" opacity=".35" />
+                        <rect x="157" y="160" width="6" height="26" />
+                        <path d="M146 160 h28 l-6 -12 h-16 z" />
+                        <circle cx="320" cy="188" r="10" opacity=".35" />
+                        <rect x="317" y="160" width="6" height="26" />
+                        <path d="M306 160 h28 l-6 -12 h-16 z" />
+                        <circle cx="480" cy="188" r="10" opacity=".35" />
+                        <rect x="477" y="160" width="6" height="26" />
+                        <path d="M466 160 h28 l-6 -12 h-16 z" />
+                      </g>
+                      <g fill="#2E080A">
+                        <circle cx="160" cy="238" r="16" />
+                        <rect x="140" y="252" width="40" height="52" rx="12" />
+                        <circle cx="480" cy="238" r="16" />
+                        <rect x="460" y="252" width="40" height="52" rx="12" />
+                      </g>
+                      <rect
+                        x="128"
+                        y="252"
+                        width="64"
+                        height="8"
+                        rx="4"
+                        fill="#F6E6E6"
+                        opacity=".9"
+                      />
+                      <rect
+                        x="448"
+                        y="252"
+                        width="64"
+                        height="8"
+                        rx="4"
+                        fill="#F6E6E6"
+                        opacity=".9"
+                      />
+                      <rect
+                        x="0"
+                        y="340"
+                        width="640"
+                        height="60"
+                        fill="#240607"
+                      />
+                      <g fill="#FAA61A" opacity=".9">
+                        <rect x="262" y="286" width="52" height="10" rx="3" />
+                        <rect x="268" y="274" width="44" height="10" rx="3" />
+                        <rect x="274" y="262" width="34" height="10" rx="3" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">Graduate School Library</h3>
+                    <p class="lib-text">
+                      Specialized collections supporting graduate students,
+                      faculty, and advanced academic research.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <!-- Junior High School Library -->
+                <article
+                  id="lib-jhs"
+                  data-reveal
+                  data-reveal-delay="160"
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of the junior high school library"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gJ" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#661114" />
+                          <stop offset="1" stop-color="#932F33" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gJ)" />
+                      <rect
+                        x="70"
+                        y="70"
+                        width="150"
+                        height="110"
+                        rx="10"
+                        fill="#FFD25E"
+                        opacity=".25"
+                      />
+                      <line
+                        x1="145"
+                        y1="70"
+                        x2="145"
+                        y2="180"
+                        stroke="#FFD25E"
+                        stroke-width="4"
+                        opacity=".5"
+                      />
+                      <line
+                        x1="70"
+                        y1="125"
+                        x2="220"
+                        y2="125"
+                        stroke="#FFD25E"
+                        stroke-width="4"
+                        opacity=".5"
+                      />
+                      <g fill="#3A0A0C">
+                        <rect x="300" y="150" width="120" height="120" rx="8" />
+                        <rect x="450" y="150" width="120" height="120" rx="8" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="312" y="164" width="9" height="34" />
+                        <rect x="326" y="170" width="8" height="28" />
+                        <rect x="340" y="162" width="10" height="36" />
+                        <rect x="356" y="172" width="8" height="26" />
+                        <rect x="462" y="164" width="9" height="34" />
+                        <rect x="476" y="170" width="8" height="28" />
+                        <rect x="490" y="162" width="10" height="36" />
+                      </g>
+                      <g fill="#F6E6E6" opacity=".85">
+                        <rect x="312" y="222" width="8" height="30" />
+                        <rect x="326" y="228" width="10" height="24" />
+                        <rect x="342" y="220" width="9" height="32" />
+                        <rect x="462" y="222" width="8" height="30" />
+                        <rect x="476" y="228" width="10" height="24" />
+                        <rect x="492" y="220" width="9" height="32" />
+                      </g>
+                      <circle cx="150" cy="270" r="34" fill="#FAA61A" />
+                      <path d="M150 236 a34 34 0 0 1 0 68 z" fill="#FFD25E" />
+                      <rect
+                        x="146"
+                        y="304"
+                        width="8"
+                        height="26"
+                        fill="#3A0A0C"
+                      />
+                      <rect
+                        x="128"
+                        y="330"
+                        width="44"
+                        height="8"
+                        rx="4"
+                        fill="#3A0A0C"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="250" cy="286" r="15" />
+                        <rect x="232" y="299" width="36" height="48" rx="11" />
+                      </g>
+                      <rect
+                        x="222"
+                        y="306"
+                        width="56"
+                        height="7"
+                        rx="3.5"
+                        fill="#F6E6E6"
+                      />
+                      <rect
+                        x="0"
+                        y="348"
+                        width="640"
+                        height="52"
+                        fill="#240607"
+                      />
+                      <g fill="#FFD25E" opacity=".9">
+                        <path d="M60 40 l22 26 h-44 z" />
+                        <path d="M560 40 l22 26 h-44 z" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">Junior High School Library</h3>
+                    <p class="lib-text">
+                      Educational resources supporting the learning and reading
+                      needs of junior high school students.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <!-- Senior High School Library -->
+                <article
+                  id="lib-shs"
+                  data-reveal
+                  data-reveal-delay="240"
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of the senior high school library study area"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gS" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#4C0D10" />
+                          <stop offset="1" stop-color="#7D1519" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gS)" />
+                      <g fill="#3A0A0C">
+                        <rect x="60" y="70" width="520" height="30" rx="5" />
+                        <rect x="60" y="116" width="520" height="30" rx="5" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="76" y="76" width="9" height="20" />
+                        <rect x="92" y="80" width="8" height="16" />
+                        <rect x="106" y="74" width="10" height="22" />
+                        <rect x="200" y="76" width="9" height="20" />
+                        <rect x="216" y="80" width="8" height="16" />
+                        <rect x="400" y="76" width="9" height="20" />
+                        <rect x="416" y="74" width="10" height="22" />
+                        <rect x="500" y="80" width="8" height="16" />
+                      </g>
+                      <g fill="#F6E6E6" opacity=".85">
+                        <rect x="140" y="122" width="9" height="20" />
+                        <rect x="156" y="126" width="8" height="16" />
+                        <rect x="300" y="122" width="9" height="20" />
+                        <rect x="316" y="126" width="8" height="16" />
+                        <rect x="450" y="122" width="9" height="20" />
+                        <rect x="466" y="126" width="8" height="16" />
+                      </g>
+                      <rect
+                        x="120"
+                        y="250"
+                        width="400"
+                        height="14"
+                        rx="7"
+                        fill="#FFD25E"
+                      />
+                      <rect
+                        x="150"
+                        y="264"
+                        width="12"
+                        height="60"
+                        fill="#3A0A0C"
+                      />
+                      <rect
+                        x="478"
+                        y="264"
+                        width="12"
+                        height="60"
+                        fill="#3A0A0C"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="220" cy="212" r="16" />
+                        <rect x="200" y="226" width="40" height="30" rx="10" />
+                        <circle cx="320" cy="212" r="16" />
+                        <rect x="300" y="226" width="40" height="30" rx="10" />
+                        <circle cx="420" cy="212" r="16" />
+                        <rect x="400" y="226" width="40" height="30" rx="10" />
+                      </g>
+                      <g fill="#F6E6E6">
+                        <rect x="238" y="228" width="34" height="22" rx="3" />
+                        <rect x="338" y="228" width="34" height="22" rx="3" />
+                      </g>
+                      <rect
+                        x="242"
+                        y="232"
+                        width="26"
+                        height="3"
+                        fill="#7D1519"
+                      />
+                      <rect
+                        x="242"
+                        y="238"
+                        width="20"
+                        height="3"
+                        fill="#7D1519"
+                      />
+                      <rect
+                        x="342"
+                        y="232"
+                        width="26"
+                        height="3"
+                        fill="#7D1519"
+                      />
+                      <rect
+                        x="342"
+                        y="238"
+                        width="20"
+                        height="3"
+                        fill="#7D1519"
+                      />
+                      <rect
+                        x="0"
+                        y="330"
+                        width="640"
+                        height="70"
+                        fill="#240607"
+                      />
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">Senior High School Library</h3>
+                    <p class="lib-text">
+                      Academic and reference materials supporting Grades 11 and
+                      12 students.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <!-- Grade School Library -->
+                <article
+                  id="lib-grade"
+                  data-reveal
+                  data-reveal-delay="320"
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of the grade school reading corner"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gE" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#7D1519" />
+                          <stop offset="1" stop-color="#AC4A4D" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gE)" />
+                      <path
+                        d="M0 40 q40 26 80 0 q40 26 80 0 q40 26 80 0 q40 26 80 0 q40 26 80 0 q40 26 80 0 q40 26 80 0 q40 26 80 0"
+                        fill="none"
+                        stroke="#FFD25E"
+                        stroke-width="5"
+                        opacity=".8"
+                      />
+                      <g fill="#FAA61A">
+                        <path d="M120 52 l16 22 h-32 z" />
+                        <path d="M280 52 l16 22 h-32 z" />
+                        <path d="M440 52 l16 22 h-32 z" />
+                      </g>
+                      <g fill="#F6E6E6" opacity=".9">
+                        <path d="M200 52 l16 22 h-32 z" />
+                        <path d="M360 52 l16 22 h-32 z" />
+                        <path d="M520 52 l16 22 h-32 z" />
+                      </g>
+                      <g fill="#3A0A0C">
+                        <rect x="70" y="180" width="130" height="90" rx="10" />
+                        <rect x="440" y="180" width="130" height="90" rx="10" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="84" y="194" width="12" height="30" rx="2" />
+                        <rect x="102" y="200" width="10" height="24" rx="2" />
+                        <rect x="118" y="192" width="13" height="32" rx="2" />
+                        <rect x="138" y="202" width="10" height="22" rx="2" />
+                        <rect x="454" y="194" width="12" height="30" rx="2" />
+                        <rect x="472" y="200" width="10" height="24" rx="2" />
+                        <rect x="488" y="192" width="13" height="32" rx="2" />
+                      </g>
+                      <g fill="#FFD25E">
+                        <rect x="84" y="238" width="12" height="22" rx="2" />
+                        <rect x="102" y="242" width="10" height="18" rx="2" />
+                        <rect x="118" y="236" width="13" height="24" rx="2" />
+                        <rect x="454" y="238" width="12" height="22" rx="2" />
+                        <rect x="472" y="242" width="10" height="18" rx="2" />
+                      </g>
+                      <ellipse
+                        cx="320"
+                        cy="330"
+                        rx="150"
+                        ry="34"
+                        fill="#4C0D10"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="280" cy="268" r="17" />
+                        <rect x="258" y="283" width="44" height="46" rx="14" />
+                        <circle cx="360" cy="268" r="17" />
+                        <rect x="338" y="283" width="44" height="46" rx="14" />
+                      </g>
+                      <path d="M296 296 l24 -8 l24 8 l-24 8 z" fill="#F6E6E6" />
+                      <circle
+                        cx="320"
+                        cy="150"
+                        r="26"
+                        fill="#FFD25E"
+                        opacity=".35"
+                      />
+                      <circle
+                        cx="320"
+                        cy="150"
+                        r="14"
+                        fill="#FFD25E"
+                        opacity=".6"
+                      />
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">Grade School Library</h3>
+                    <p class="lib-text">
+                      Age-appropriate educational resources that encourage
+                      reading and early learning.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <!-- Audio-Visual Room -->
+                <article
+                  id="lib-av"
+                  data-reveal
+                  data-reveal-delay="400"
+                  class="lib-card group scroll-mt-28"
+                >
+                  <div
+                    class="lib-art"
+                    role="img"
+                    aria-label="Illustration of the audio-visual room"
+                  >
+                    <svg
+                      viewBox="0 0 640 400"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="gA" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#240607" />
+                          <stop offset="1" stop-color="#4C0D10" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="400" fill="url(#gA)" />
+                      <rect
+                        x="150"
+                        y="60"
+                        width="340"
+                        height="190"
+                        rx="10"
+                        fill="#3A0A0C"
+                      />
+                      <rect
+                        x="162"
+                        y="72"
+                        width="316"
+                        height="166"
+                        rx="6"
+                        fill="#7D1519"
+                      />
+                      <path
+                        d="M162 238 l90 -70 l60 46 l70 -54 l96 78 z"
+                        fill="#FAA61A"
+                        opacity=".85"
+                      />
+                      <circle cx="240" cy="120" r="18" fill="#FFD25E" />
+                      <rect
+                        x="300"
+                        y="250"
+                        width="40"
+                        height="26"
+                        fill="#3A0A0C"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="200" cy="320" r="16" />
+                        <rect x="180" y="334" width="40" height="40" rx="12" />
+                        <circle cx="320" cy="326" r="16" />
+                        <rect x="300" y="340" width="40" height="40" rx="12" />
+                        <circle cx="440" cy="320" r="16" />
+                        <rect x="420" y="334" width="40" height="40" rx="12" />
+                      </g>
+                      <g stroke="#FFD25E" stroke-width="5" fill="none">
+                        <path d="M184 314 a16 16 0 0 1 32 0" />
+                        <path d="M304 320 a16 16 0 0 1 32 0" />
+                        <path d="M424 314 a16 16 0 0 1 32 0" />
+                      </g>
+                      <g fill="#FAA61A">
+                        <rect x="60" y="120" width="52" height="130" rx="8" />
+                        <rect x="528" y="120" width="52" height="130" rx="8" />
+                      </g>
+                      <g fill="#240607">
+                        <circle cx="86" cy="152" r="12" />
+                        <circle cx="86" cy="196" r="12" />
+                        <circle cx="554" cy="152" r="12" />
+                        <circle cx="554" cy="196" r="12" />
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="lib-body">
+                    <h3 class="lib-title">Audio-Visual Room</h3>
+                    <p class="lib-text">
+                      Media resources, equipment, and services supporting
+                      teaching and learning activities.
+                    </p>
+                    <a
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl"
+                      target="_blank"
+                      rel="noopener"
+                      class="lib-link"
+                      >Explore Library
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ H. OPERATING HOURS ============ -->
+          <section
+            id="hours"
+            class="py-20 md:py-28 bg-maroon-950 text-cream scroll-mt-24 relative overflow-hidden"
+          >
+            <div
+              class="hours-pattern absolute inset-0 opacity-[0.07]"
+              aria-hidden="true"
+            ></div>
+            <div class="relative max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div
+                class="grid lg:grid-cols-[1fr_1.4fr] gap-12 lg:gap-20 items-start"
+              >
+                <div data-reveal>
+                  <p class="eyebrow text-gold-300">Library Operating Hours</p>
+                  <h2
+                    class="font-display font-bold text-3xl md:text-4xl leading-tight mt-3"
+                  >
+                    When to visit us
+                  </h2>
+                  <p class="mt-4 text-cream/75 leading-relaxed">
+                    Plan your visit across the five library sections of the
+                    University of Saint Anthony. Live status is computed from
+                    official schedules (Philippine Standard Time).
+                  </p>
+                  <div
+                    class="mt-8 rounded-2xl border border-gold-400/30 bg-maroon-900/60 p-5 flex gap-4 items-start"
+                  >
+                    <i
+                      class="fa-solid fa-circle-info text-gold-400 text-xl mt-0.5"
+                      aria-hidden="true"
+                    ></i>
+                    <p class="text-sm text-cream/80 leading-relaxed">
+                      Schedules may change during holidays and special
+                      university activities. Borrowing of books is suspended one
+                      week before final examinations.
+                    </p>
+                  </div>
+                  <a
+                    href="https://library.usant.edu.ph/"
+                    target="_blank"
+                    rel="noopener"
+                    class="btn-gold mt-8"
+                    >Verify in Library System
+                    <i
+                      class="fa-solid fa-arrow-up-right-from-square text-xs"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                </div>
+
+                <ul
+                  class="space-y-3"
+                  id="hoursList"
+                  data-reveal
+                  data-reveal-delay="120"
+                >
+                  <li
+                    class="hours-row"
+                    data-days="1,2,3,4,5"
+                    data-open="07:30"
+                    data-close="17:00"
+                  >
+                    <span class="hours-ico"
+                      ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                    ></span>
+                    <span class="flex-1">
+                      <span class="block font-semibold"
+                        >Grade School Library</span
+                      >
+                      <span class="block text-sm text-cream/65"
+                        >Monday–Friday</span
+                      >
+                    </span>
+                    <span class="text-right">
+                      <span class="block font-display text-lg text-gold-300"
+                        >7:30 AM – 5:00 PM</span
+                      >
+                      <span class="status-pill" data-status>—</span>
+                    </span>
+                  </li>
+                  <li
+                    class="hours-row"
+                    data-days="1,2,3,4,5"
+                    data-open="07:30"
+                    data-close="17:00"
+                  >
+                    <span class="hours-ico"
+                      ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                    ></span>
+                    <span class="flex-1">
+                      <span class="block font-semibold"
+                        >Junior High School Library</span
+                      >
+                      <span class="block text-sm text-cream/65"
+                        >Monday–Friday</span
+                      >
+                    </span>
+                    <span class="text-right">
+                      <span class="block font-display text-lg text-gold-300"
+                        >7:30 AM – 5:00 PM</span
+                      >
+                      <span class="status-pill" data-status>—</span>
+                    </span>
+                  </li>
+                  <li
+                    class="hours-row"
+                    data-days="1,2,3,4,5"
+                    data-open="07:30"
+                    data-close="17:00"
+                  >
+                    <span class="hours-ico"
+                      ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                    ></span>
+                    <span class="flex-1">
+                      <span class="block font-semibold"
+                        >Senior High School Library</span
+                      >
+                      <span class="block text-sm text-cream/65"
+                        >Monday–Friday</span
+                      >
+                    </span>
+                    <span class="text-right">
+                      <span class="block font-display text-lg text-gold-300"
+                        >7:30 AM – 5:00 PM</span
+                      >
+                      <span class="status-pill" data-status>—</span>
+                    </span>
+                  </li>
+                  <li
+                    class="hours-row"
+                    data-days="1,2,3,4,5,6"
+                    data-open="07:30"
+                    data-close="17:00"
+                  >
+                    <span class="hours-ico"
+                      ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                    ></span>
+                    <span class="flex-1">
+                      <span class="block font-semibold">College Library</span>
+                      <span class="block text-sm text-cream/65"
+                        >Monday–Saturday</span
+                      >
+                    </span>
+                    <span class="text-right">
+                      <span class="block font-display text-lg text-gold-300"
+                        >7:30 AM – 5:00 PM</span
+                      >
+                      <span class="status-pill" data-status>—</span>
+                    </span>
+                  </li>
+                  <li
+                    class="hours-row"
+                    data-days="1,2,3,4,5,6"
+                    data-open="08:00"
+                    data-close="17:00"
+                  >
+                    <span class="hours-ico"
+                      ><i class="fa-solid fa-clock" aria-hidden="true"></i
+                    ></span>
+                    <span class="flex-1">
+                      <span class="block font-semibold"
+                        >Graduate School Library</span
+                      >
+                      <span class="block text-sm text-cream/65"
+                        >Monday–Saturday</span
+                      >
+                    </span>
+                    <span class="text-right">
+                      <span class="block font-display text-lg text-gold-300"
+                        >8:00 AM – 5:00 PM</span
+                      >
+                      <span class="status-pill" data-status>—</span>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ I. RULES & REGULATIONS ============ -->
+          <section id="policies" class="py-20 md:py-28 scroll-mt-24">
+            <div
+              class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-[0.9fr_1.4fr] gap-12 lg:gap-20 items-start"
+            >
+              <div class="lg:sticky lg:top-28" data-reveal>
+                <p class="eyebrow">Rules and Regulations</p>
+                <h2 class="section-title mt-3">
+                  Library policies, clearly organized
+                </h2>
+                <p class="mt-4 text-ink/70 leading-relaxed">
+                  The following policies are published by the official USANT
+                  Library. Expand a topic to read the current rules.
+                </p>
+                <div
+                  class="mt-8 rounded-2xl bg-parchment p-6 border border-maroon-900/10"
+                >
+                  <p class="text-sm text-ink/70 leading-relaxed">
+                    <i
+                      class="fa-solid fa-quote-left text-gold-500 mr-2"
+                      aria-hidden="true"
+                    ></i
+                    >Silence shall be maintained in the library. Failure to
+                    observe this rule shall be subject to serious disciplinary
+                    action.
+                  </p>
+                  <p
+                    class="mt-3 text-xs uppercase tracking-widest text-maroon-700 font-semibold"
+                  >
+                    USANT Library Rules, Art. 09
+                  </p>
+                </div>
+                <a
+                  href="https://www.usant.edu.ph/library"
+                  target="_blank"
+                  rel="noopener"
+                  class="btn-primary mt-8"
+                  >View Complete Library Policies
+                  <i
+                    class="fa-solid fa-arrow-up-right-from-square text-xs"
+                    aria-hidden="true"
+                  ></i
+                ></a>
+              </div>
+
+              <div
+                id="policyAccordion"
+                class="divide-y divide-maroon-900/10 border-y border-maroon-900/10"
+                data-reveal
+                data-reveal-delay="100"
+              >
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc1"
+                      id="acc1btn"
+                    >
+                      General Library Rules
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc1"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc1btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          Students should be in proper uniform with I.D. when
+                          entering the library.
+                        </li>
+                        <li>
+                          Silence shall be maintained in the library. Failure to
+                          observe this rule shall be subject to serious
+                          disciplinary action.
+                        </li>
+                        <li>
+                          Stealing or willfully destroying, cutting, tearing, or
+                          in any way damaging books, pamphlets, periodicals, or
+                          any part thereof shall be subject to serious
+                          disciplinary action.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc2"
+                      id="acc2btn"
+                    >
+                      Student Identification Requirements
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc2"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc2btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          Students should be in proper uniform with I.D. when
+                          entering the library.
+                        </li>
+                        <li>
+                          Students shall present their library card for Grade
+                          School, Junior High School, and Senior High Students
+                          with a picture.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc3"
+                      id="acc3btn"
+                    >
+                      Use of Reference Materials
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc3"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc3btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          General references such as dictionaries,
+                          encyclopedias, almanacs, atlases, and instructional
+                          materials shall be read only inside the library.
+                        </li>
+                        <li>
+                          General reference collection, theses, dissertations,
+                          and periodicals are to be used inside the library
+                          only.
+                        </li>
+                        <li>
+                          Faculty members shall be the ones to borrow reference
+                          books for their use.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc4"
+                      id="acc4btn"
+                    >
+                      Thesis and Dissertation Policies
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc4"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc4btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          Thesis and dissertations should be read inside the
+                          library.
+                        </li>
+                        <li>
+                          These materials form part of the Graduate School
+                          Library’s major research collection and are
+                          non-circulating.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc5"
+                      id="acc5btn"
+                    >
+                      Laptop and Electronic Device Guidelines
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc5"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc5btn"
+                  >
+                    <div class="acc-content">
+                      <p class="text-sm text-ink/70 leading-relaxed">
+                        The official USANT Library publication does not list a
+                        separate device policy; the general rules on silence,
+                        proper conduct, and care of library materials apply to
+                        the use of laptops and electronic devices inside the
+                        library.
+                      </p>
+                      <p class="mt-3 text-sm text-ink/70">
+                        <span class="badge-note">Not separately published</span>
+                        For current device guidelines, please inquire at the
+                        library office or
+                        <a
+                          href="#contact"
+                          class="text-maroon-700 font-semibold underline decoration-gold-400 decoration-2 underline-offset-4"
+                          >contact the library</a
+                        >.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc6"
+                      id="acc6btn"
+                    >
+                      Borrowing and Circulation Policies
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc6"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc6btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          Faculty and staff can borrow two (2) books — one (1)
+                          Filipiniana and one (1) circulation — for a period of
+                          one (1) week only; students can borrow two (2) books —
+                          one (1) Filipiniana and one (1) circulation — for
+                          three (3) days.
+                        </li>
+                        <li>
+                          A week before the final examination, borrowing of
+                          books is suspended / cancelled.
+                        </li>
+                        <li>
+                          Circulation books may be borrowed and subject to
+                          renewal depending upon the number of copies available
+                          at the time they are borrowed.
+                        </li>
+                        <li>
+                          Two (2) books can be loaned out for a day from the
+                          circulation, excluding holidays and Sunday.
+                          Filipiniana collection can be loaned for a day, one
+                          (1) at a time, excluding holidays and Sunday.
+                        </li>
+                        <li>
+                          Reserve books for overnight use may be borrowed at
+                          4:00 P.M. and returned at 9:00 A.M. the following day.
+                          Failure to return them on time will result in a fine
+                          of Php 1.00 per hour.
+                        </li>
+                        <li>
+                          Fiction / circulation books may be borrowed for a
+                          period of three (3) days. Failure to return them on
+                          time will result in a fine of Php 9.00 per day.
+                        </li>
+                        <li>
+                          Borrowers are allowed to photocopy the selected topic
+                          or chapter of the borrowed book.
+                        </li>
+                        <li>
+                          Lost books must be replaced with the same author,
+                          title, and edition, binding and copyright date; if not
+                          possible, full payment of the same plus fine from the
+                          time the book is lost shall be made at the cashier’s
+                          office.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc7"
+                      id="acc7btn"
+                    >
+                      Preservation and Conservation
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc7"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc7btn"
+                  >
+                    <div class="acc-content">
+                      <ul class="policy-list">
+                        <li>
+                          The borrower shall be responsible for the loaned book.
+                          In case of loss or damage, they shall be required
+                          either to pay or replace it with the same title upon
+                          arrangement with the librarian.
+                        </li>
+                        <li>
+                          Stealing or willfully destroying, cutting, tearing, or
+                          in any way damaging the books, pamphlets, periodicals,
+                          or any part thereof shall be subject to serious
+                          disciplinary action.
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="acc-item">
+                  <h3>
+                    <button
+                      type="button"
+                      class="acc-btn"
+                      aria-expanded="false"
+                      aria-controls="acc8"
+                      id="acc8btn"
+                    >
+                      Outside Researchers Policy
+                      <i
+                        class="fa-solid fa-plus acc-ico"
+                        aria-hidden="true"
+                      ></i>
+                    </button>
+                  </h3>
+                  <div
+                    id="acc8"
+                    class="acc-panel"
+                    role="region"
+                    aria-labelledby="acc8btn"
+                  >
+                    <div class="acc-content">
+                      <p class="text-sm text-ink/70 leading-relaxed">
+                        The official USANT Library publication does not
+                        currently publish a separate outside-researchers policy.
+                        Researchers from other institutions are encouraged to
+                        coordinate directly with the library office for access
+                        arrangements.
+                      </p>
+                      <p class="mt-3 text-sm text-ink/70">
+                        <span class="badge-note">Not separately published</span>
+                        Coordinate with the library via
+                        <a
+                          href="#contact"
+                          class="text-maroon-700 font-semibold underline decoration-gold-400 decoration-2 underline-offset-4"
+                          >the contact details below</a
+                        >.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ J. ANNOUNCEMENTS ============ -->
+          <section
+            id="announcements"
+            class="py-20 md:py-28 bg-parchment/70 scroll-mt-24"
+          >
+            <div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div
+                class="flex flex-col md:flex-row md:items-end md:justify-between gap-6"
+                data-reveal
+              >
+                <div class="max-w-2xl">
+                  <p class="eyebrow">Announcements &amp; Updates</p>
+                  <h2 class="section-title mt-3">Latest from the library</h2>
+                  <p class="mt-4 text-ink/70">
+                    New acquisitions, activities, research workshops, schedule
+                    changes, and important notices.
+                  </p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button
+                    id="annPrev"
+                    type="button"
+                    class="carousel-btn"
+                    aria-label="Previous announcements"
+                  >
+                    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                  </button>
+                  <button
+                    id="annNext"
+                    type="button"
+                    class="carousel-btn"
+                    aria-label="Next announcements"
+                  >
+                    <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                id="annTrack"
+                class="mt-12 flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 no-scrollbar"
+                data-reveal
+                data-reveal-delay="100"
+              >
+                <article class="ann-card snap-start">
+                  <div class="ann-art">
+                    <svg
+                      viewBox="0 0 640 360"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="ga1" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0" stop-color="#7D1519" />
+                          <stop offset="1" stop-color="#4C0D10" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="360" fill="url(#ga1)" />
+                      <rect
+                        x="120"
+                        y="230"
+                        width="400"
+                        height="16"
+                        rx="8"
+                        fill="#FFD25E"
+                      />
+                      <g>
+                        <rect
+                          x="170"
+                          y="120"
+                          width="70"
+                          height="110"
+                          rx="6"
+                          fill="#FAA61A"
+                        />
+                        <rect
+                          x="252"
+                          y="100"
+                          width="70"
+                          height="130"
+                          rx="6"
+                          fill="#F6E6E6"
+                        />
+                        <rect
+                          x="334"
+                          y="130"
+                          width="70"
+                          height="100"
+                          rx="6"
+                          fill="#C67678"
+                        />
+                        <rect
+                          x="416"
+                          y="110"
+                          width="70"
+                          height="120"
+                          rx="6"
+                          fill="#FFD25E"
+                        />
+                      </g>
+                      <g fill="#4C0D10" opacity=".55">
+                        <rect x="182" y="140" width="46" height="6" rx="3" />
+                        <rect x="182" y="154" width="34" height="6" rx="3" />
+                        <rect x="346" y="150" width="46" height="6" rx="3" />
+                        <rect x="346" y="164" width="34" height="6" rx="3" />
+                      </g>
+                      <g fill="#7D1519" opacity=".7">
+                        <rect x="264" y="120" width="46" height="6" rx="3" />
+                        <rect x="264" y="134" width="34" height="6" rx="3" />
+                        <rect x="428" y="130" width="46" height="6" rx="3" />
+                        <rect x="428" y="144" width="34" height="6" rx="3" />
+                      </g>
+                      <circle
+                        cx="320"
+                        cy="60"
+                        r="24"
+                        fill="#FFD25E"
+                        opacity=".35"
+                      />
+                    </svg>
+                    <span class="ann-tag">New Acquisitions</span>
+                  </div>
+                  <div class="ann-body">
+                    <p class="ann-date">
+                      <i
+                        class="fa-regular fa-calendar-days mr-2"
+                        aria-hidden="true"
+                      ></i
+                      >November 3, 2026 <span class="badge-sample">Sample</span>
+                    </p>
+                    <h3 class="ann-title">
+                      New Book Acquisitions Display — 2nd Semester, SY 2026–2027
+                    </h3>
+                    <p class="ann-text">
+                      Newly processed titles are now on display at the
+                      circulation desk and encoded in the USANT Library System
+                      for online searching.
+                    </p>
+                    <a
+                      href="https://www.facebook.com/p/USANT-Library-100083583001649/"
+                      target="_blank"
+                      rel="noopener"
+                      class="ann-link"
+                      >Read More
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <article class="ann-card snap-start">
+                  <div class="ann-art">
+                    <svg
+                      viewBox="0 0 640 360"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="ga2" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#661114" />
+                          <stop offset="1" stop-color="#2E080A" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="360" fill="url(#ga2)" />
+                      <rect
+                        x="90"
+                        y="60"
+                        width="280"
+                        height="160"
+                        rx="10"
+                        fill="#3A0A0C"
+                      />
+                      <rect
+                        x="102"
+                        y="72"
+                        width="256"
+                        height="136"
+                        rx="6"
+                        fill="#7D1519"
+                      />
+                      <g fill="#FAA61A">
+                        <rect x="120" y="92" width="120" height="10" rx="5" />
+                        <rect
+                          x="120"
+                          y="114"
+                          width="180"
+                          height="8"
+                          rx="4"
+                          opacity=".8"
+                        />
+                        <rect
+                          x="120"
+                          y="132"
+                          width="150"
+                          height="8"
+                          rx="4"
+                          opacity=".6"
+                        />
+                        <rect
+                          x="120"
+                          y="150"
+                          width="170"
+                          height="8"
+                          rx="4"
+                          opacity=".45"
+                        />
+                      </g>
+                      <circle cx="450" cy="140" r="26" fill="#2E080A" />
+                      <rect
+                        x="418"
+                        y="164"
+                        width="64"
+                        height="80"
+                        rx="18"
+                        fill="#2E080A"
+                      />
+                      <rect
+                        x="404"
+                        y="176"
+                        width="40"
+                        height="10"
+                        rx="5"
+                        fill="#FFD25E"
+                        transform="rotate(-24 404 176)"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="160" cy="290" r="16" />
+                        <rect x="140" y="304" width="40" height="40" rx="12" />
+                        <circle cx="280" cy="290" r="16" />
+                        <rect x="260" y="304" width="40" height="40" rx="12" />
+                        <circle cx="400" cy="290" r="16" />
+                        <rect x="380" y="304" width="40" height="40" rx="12" />
+                      </g>
+                      <g fill="#F6E6E6">
+                        <rect x="196" y="296" width="30" height="20" rx="3" />
+                        <rect x="316" y="296" width="30" height="20" rx="3" />
+                      </g>
+                    </svg>
+                    <span class="ann-tag">Research Workshop</span>
+                  </div>
+                  <div class="ann-body">
+                    <p class="ann-date">
+                      <i
+                        class="fa-regular fa-calendar-days mr-2"
+                        aria-hidden="true"
+                      ></i
+                      >October 21, 2026 <span class="badge-sample">Sample</span>
+                    </p>
+                    <h3 class="ann-title">
+                      Hands-on Orientation: Navigating the USANT Library System
+                    </h3>
+                    <p class="ann-text">
+                      A guided workshop on catalog searching, account login, and
+                      locating theses and periodicals for student researchers.
+                    </p>
+                    <a
+                      href="https://www.facebook.com/p/USANT-Library-100083583001649/"
+                      target="_blank"
+                      rel="noopener"
+                      class="ann-link"
+                      >Read More
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <article class="ann-card snap-start">
+                  <div class="ann-art">
+                    <svg
+                      viewBox="0 0 640 360"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="ga3" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0" stop-color="#932F33" />
+                          <stop offset="1" stop-color="#4C0D10" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="360" fill="url(#ga3)" />
+                      <circle
+                        cx="470"
+                        cy="90"
+                        r="34"
+                        fill="#FFD25E"
+                        opacity=".4"
+                      />
+                      <rect
+                        x="466"
+                        y="120"
+                        width="8"
+                        height="90"
+                        fill="#3A0A0C"
+                      />
+                      <rect
+                        x="440"
+                        y="208"
+                        width="60"
+                        height="10"
+                        rx="5"
+                        fill="#3A0A0C"
+                      />
+                      <path
+                        d="M150 250 q60 -46 120 0 l0 60 l-120 0 z"
+                        fill="#3A0A0C"
+                      />
+                      <path
+                        d="M270 250 q60 -46 120 0 l0 60 l-120 0 z"
+                        fill="#240607"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="230" cy="196" r="18" />
+                        <rect x="206" y="212" width="48" height="52" rx="14" />
+                      </g>
+                      <path
+                        d="M206 226 l24 -10 l24 10 l-24 10 z"
+                        fill="#F6E6E6"
+                      />
+                      <g fill="#FAA61A">
+                        <rect x="80" y="90" width="10" height="60" rx="3" />
+                        <rect x="96" y="98" width="9" height="52" rx="3" />
+                        <rect x="111" y="86" width="11" height="64" rx="3" />
+                      </g>
+                      <rect
+                        x="70"
+                        y="150"
+                        width="62"
+                        height="8"
+                        rx="4"
+                        fill="#FFD25E"
+                      />
+                    </svg>
+                    <span class="ann-tag">Important Notice</span>
+                  </div>
+                  <div class="ann-body">
+                    <p class="ann-date">
+                      <i
+                        class="fa-regular fa-calendar-days mr-2"
+                        aria-hidden="true"
+                      ></i
+                      >October 6, 2026 <span class="badge-sample">Sample</span>
+                    </p>
+                    <h3 class="ann-title">
+                      Reminder: Borrowing Suspension Before Final Examinations
+                    </h3>
+                    <p class="ann-text">
+                      Per library policy, borrowing of books is suspended one
+                      week before final examinations. Reading areas remain open
+                      during regular hours.
+                    </p>
+                    <a href="#policies" class="ann-link"
+                      >Read More
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+
+                <article class="ann-card snap-start">
+                  <div class="ann-art">
+                    <svg
+                      viewBox="0 0 640 360"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="ga4" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#4C0D10" />
+                          <stop offset="1" stop-color="#7D1519" />
+                        </linearGradient>
+                      </defs>
+                      <rect width="640" height="360" fill="url(#ga4)" />
+                      <circle
+                        cx="320"
+                        cy="150"
+                        r="70"
+                        fill="none"
+                        stroke="#FAA61A"
+                        stroke-width="6"
+                      />
+                      <path
+                        d="M320 96 a54 54 0 0 1 0 108 z"
+                        fill="#FAA61A"
+                        opacity=".55"
+                      />
+                      <rect
+                        x="314"
+                        y="150"
+                        width="12"
+                        height="52"
+                        rx="6"
+                        fill="#FFD25E"
+                      />
+                      <rect
+                        x="320"
+                        y="150"
+                        width="34"
+                        height="8"
+                        rx="4"
+                        fill="#FFD25E"
+                      />
+                      <g fill="#2E080A">
+                        <circle cx="180" cy="280" r="16" />
+                        <rect x="160" y="294" width="40" height="46" rx="12" />
+                        <circle cx="460" cy="280" r="16" />
+                        <rect x="440" y="294" width="40" height="46" rx="12" />
+                      </g>
+                    </svg>
+                    <span class="ann-tag">Schedule Update</span>
+                  </div>
+                  <div class="ann-body">
+                    <p class="ann-date">
+                      <i
+                        class="fa-regular fa-calendar-days mr-2"
+                        aria-hidden="true"
+                      ></i
+                      >September 15, 2026
+                      <span class="badge-sample">Sample</span>
+                    </p>
+                    <h3 class="ann-title">
+                      Library Hours During University-Wide Events
+                    </h3>
+                    <p class="ann-text">
+                      Operating hours may be adjusted during holidays and
+                      special university activities. Watch this space for the
+                      updated schedule.
+                    </p>
+                    <a href="#hours" class="ann-link"
+                      >Read More
+                      <i
+                        class="fa-solid fa-arrow-right-long text-xs"
+                        aria-hidden="true"
+                      ></i
+                    ></a>
+                  </div>
+                </article>
+              </div>
+
+              <div class="mt-2 flex items-center justify-between gap-4">
+                <div
+                  id="annDots"
+                  class="flex items-center gap-2"
+                  aria-label="Announcement pages"
+                ></div>
+                <p class="text-xs text-ink/50 italic">
+                  Sample entries shown for layout — replace with official
+                  library announcements.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ K. DIGITAL RESOURCES ============ -->
+          <section
+            id="resources"
+            class="py-20 md:py-28 bg-maroon-900 text-cream scroll-mt-24 relative overflow-hidden"
+          >
+            <div
+              class="hours-pattern absolute inset-0 opacity-[0.06]"
+              aria-hidden="true"
+            ></div>
+            <div
+              class="relative max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-14 lg:gap-20 items-center"
+            >
+              <div data-reveal>
+                <p class="eyebrow text-gold-300">
+                  Digital Resources &amp; Research
+                </p>
+                <h2
+                  class="font-display font-bold text-3xl md:text-5xl leading-tight mt-3"
+                >
+                  Explore a world of knowledge
+                </h2>
+                <p class="mt-5 text-cream/80 leading-relaxed max-w-xl">
+                  Access library resources and discover materials that support
+                  your academic journey and research activities — all searchable
+                  through the official USANT Library System.
+                </p>
+
+                <ul class="mt-9 grid sm:grid-cols-2 gap-3">
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i
+                        class="fa-solid fa-magnifying-glass"
+                        aria-hidden="true"
+                      ></i
+                      >Online Library Catalog</a
+                    >
+                  </li>
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i class="fa-solid fa-book" aria-hidden="true"></i
+                      >Electronic Books</a
+                    >
+                  </li>
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i class="fa-solid fa-newspaper" aria-hidden="true"></i
+                      >Academic Journals</a
+                    >
+                  </li>
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i class="fa-solid fa-file-lines" aria-hidden="true"></i
+                      >Research Publications</a
+                    >
+                  </li>
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i
+                        class="fa-solid fa-graduation-cap"
+                        aria-hidden="true"
+                      ></i
+                      >Institutional Research</a
+                    >
+                  </li>
+                  <li>
+                    <a
+                      class="res-tile"
+                      href="https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl"
+                      target="_blank"
+                      rel="noopener"
+                      ><i class="fa-solid fa-bookmark" aria-hidden="true"></i
+                      >Reference Materials</a
+                    >
+                  </li>
+                </ul>
+
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="btn-gold mt-9"
+                  >Access Library System
+                  <i
+                    class="fa-solid fa-arrow-up-right-from-square text-xs"
+                    aria-hidden="true"
+                  ></i
+                ></a>
+              </div>
+
+              <div class="relative" data-reveal data-reveal-delay="120">
+                <div
+                  class="rounded-3xl border border-gold-400/25 bg-maroon-950/60 p-6 md:p-8 shadow-lift"
+                >
+                  <svg
+                    viewBox="0 0 560 380"
+                    class="w-full h-auto"
+                    role="img"
+                    aria-label="Illustration of a laptop showing the USANT library catalog"
+                  >
+                    <rect
+                      x="120"
+                      y="60"
+                      width="320"
+                      height="200"
+                      rx="14"
+                      fill="#240607"
+                    />
+                    <rect
+                      x="134"
+                      y="74"
+                      width="292"
+                      height="172"
+                      rx="8"
+                      fill="#3A0A0C"
+                    />
+                    <rect
+                      x="152"
+                      y="94"
+                      width="120"
+                      height="12"
+                      rx="6"
+                      fill="#FAA61A"
+                    />
+                    <rect
+                      x="152"
+                      y="120"
+                      width="256"
+                      height="34"
+                      rx="8"
+                      fill="#4C0D10"
+                    />
+                    <circle cx="172" cy="137" r="8" fill="#FFD25E" />
+                    <rect
+                      x="190"
+                      y="133"
+                      width="120"
+                      height="8"
+                      rx="4"
+                      fill="#F6E6E6"
+                      opacity=".7"
+                    />
+                    <g fill="#4C0D10">
+                      <rect x="152" y="168" width="80" height="60" rx="6" />
+                      <rect x="240" y="168" width="80" height="60" rx="6" />
+                      <rect x="328" y="168" width="80" height="60" rx="6" />
+                    </g>
+                    <g fill="#FAA61A">
+                      <rect x="162" y="178" width="10" height="30" />
+                      <rect x="176" y="184" width="8" height="24" />
+                      <rect x="190" y="176" width="10" height="32" />
+                      <rect x="250" y="178" width="10" height="30" />
+                      <rect x="264" y="184" width="8" height="24" />
+                      <rect x="278" y="176" width="10" height="32" />
+                      <rect x="338" y="178" width="10" height="30" />
+                      <rect x="352" y="184" width="8" height="24" />
+                      <rect x="366" y="176" width="10" height="32" />
+                    </g>
+                    <rect
+                      x="80"
+                      y="260"
+                      width="400"
+                      height="14"
+                      rx="7"
+                      fill="#FFD25E"
+                    />
+                    <path d="M60 274 h440 l24 26 H36 z" fill="#240607" />
+                    <circle
+                      cx="470"
+                      cy="90"
+                      r="26"
+                      fill="#FAA61A"
+                      opacity=".25"
+                    />
+                    <circle
+                      cx="80"
+                      cy="220"
+                      r="18"
+                      fill="#FAA61A"
+                      opacity=".2"
+                    />
+                  </svg>
+                  <div class="mt-6 grid grid-cols-3 gap-3 text-center">
+                    <div class="rounded-xl bg-maroon-900/70 py-3">
+                      <p class="font-display text-xl font-bold text-gold-300">
+                        5
+                      </p>
+                      <p
+                        class="text-[11px] uppercase tracking-wider text-cream/60"
+                      >
+                        Library Sections
+                      </p>
+                    </div>
+                    <div class="rounded-xl bg-maroon-900/70 py-3">
+                      <p class="font-display text-xl font-bold text-gold-300">
+                        24/7
+                      </p>
+                      <p
+                        class="text-[11px] uppercase tracking-wider text-cream/60"
+                      >
+                        Online Catalog
+                      </p>
+                    </div>
+                    <div class="rounded-xl bg-maroon-900/70 py-3">
+                      <p class="font-display text-xl font-bold text-gold-300">
+                        Koha
+                      </p>
+                      <p
+                        class="text-[11px] uppercase tracking-wider text-cream/60"
+                      >
+                        Library System
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ L. MISSION & OBJECTIVES ============ -->
+          <section id="mission" class="py-20 md:py-28 scroll-mt-24">
+            <div
+              class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"
+              data-reveal
+            >
+              <p class="eyebrow justify-center">Mission &amp; Objectives</p>
+              <i
+                class="fa-solid fa-quote-left text-4xl text-gold-400 mt-6"
+                aria-hidden="true"
+              ></i>
+              <p
+                class="mt-6 font-display text-2xl md:text-[2rem] leading-snug text-ink/90 italic"
+              >
+                The University library is an integral part of the educational
+                program of the University. Its basic objective is to aid the
+                institution in carrying out its program in order to provide
+                quality education.
+              </p>
+              <p class="mt-5 text-ink/70 leading-relaxed max-w-3xl mx-auto">
+                The measure of its excellence is the extent to which its
+                resources and services support the institution’s objective by
+                acquiring and making available books, periodicals, and services
+                needed in the institutional program.
+              </p>
+              <div class="gold-rule mx-auto mt-8" aria-hidden="true"></div>
+            </div>
+
+            <div
+              class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-14"
+              data-reveal
+              data-reveal-delay="100"
+            >
+              <h3
+                class="font-display text-xl font-bold text-maroon-800 text-center"
+              >
+                Adopted Objectives
+              </h3>
+              <ol class="mt-8 grid md:grid-cols-2 gap-x-12 gap-y-6 obj-list">
+                <li>
+                  To select, acquire, organize and provide library materials
+                  that will enrich and support the curriculum and personal needs
+                  of the users/clientele, taking into consideration their varied
+                  interests, abilities, and learning styles.
+                </li>
+                <li>
+                  To provide library materials that will stimulate growth in
+                  factual knowledge, literary appreciation, aesthetic values,
+                  and ethical standards.
+                </li>
+                <li>
+                  To teach formally the use of books and other sources of
+                  information.
+                </li>
+                <li>
+                  To provide background information which will enable students
+                  to make intelligent judgments on their daily lives.
+                </li>
+                <li>
+                  To coordinate with the faculty and supply their needs for
+                  instructional materials.
+                </li>
+                <li>
+                  To place principle above personal opinion and reason above
+                  prejudice in the selection of materials of the highest quality
+                  in order to assure a comprehensive library collection
+                  appropriate for users/customers.
+                </li>
+                <li class="md:col-span-2">
+                  To supply essential information to the library’s clientele.
+                </li>
+              </ol>
+            </div>
+          </section>
+
+          <!-- ============ M. CONTACT & LOCATION ============ -->
+          <section
+            id="contact"
+            class="py-20 md:py-28 bg-parchment/70 scroll-mt-24"
+          >
+            <div
+              class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 lg:gap-16 items-stretch"
+            >
+              <div data-reveal>
+                <p class="eyebrow">Contact &amp; Location</p>
+                <h2 class="section-title mt-3">Visit or reach the library</h2>
+                <p class="mt-4 text-ink/70">
+                  The library welcomes students, faculty, staff, and visiting
+                  researchers. Reach us through the official university channels
+                  below.
+                </p>
+
+                <ul class="mt-9 space-y-4">
+                  <li class="contact-card">
+                    <span class="contact-ico"
+                      ><i
+                        class="fa-solid fa-location-dot"
+                        aria-hidden="true"
+                      ></i
+                    ></span>
+                    <span
+                      ><span class="block font-semibold text-ink"
+                        >University of Saint Anthony Library</span
+                      ><span class="block text-sm text-ink/65"
+                        >Dr. Ortega St., San Miguel, Iriga City 4431</span
+                      ></span
+                    >
+                  </li>
+                  <li class="contact-card">
+                    <span class="contact-ico"
+                      ><i class="fa-solid fa-phone" aria-hidden="true"></i
+                    ></span>
+                    <span
+                      ><span class="block font-semibold text-ink"
+                        >Telephone</span
+                      ><a
+                        href="tel:+63542051234"
+                        class="block text-sm text-ink/65 hover:text-maroon-700 transition-colors"
+                        >(054) 205-1234</a
+                      ></span
+                    >
+                  </li>
+                  <li class="contact-card">
+                    <span class="contact-ico"
+                      ><i class="fa-solid fa-envelope" aria-hidden="true"></i
+                    ></span>
+                    <span
+                      ><span class="block font-semibold text-ink">Email</span
+                      ><a
+                        href="mailto:info@usant.edu.ph"
+                        class="block text-sm text-ink/65 hover:text-maroon-700 transition-colors"
+                        >info@usant.edu.ph</a
+                      ></span
+                    >
+                  </li>
+                </ul>
+
+                <div class="mt-9 flex flex-wrap gap-4">
+                  <a href="mailto:info@usant.edu.ph" class="btn-primary"
+                    >Contact Us
+                    <i
+                      class="fa-solid fa-paper-plane text-xs"
+                      aria-hidden="true"
+                    ></i
+                  ></a>
+                  <a
+                    href="https://www.usant.edu.ph/"
+                    target="_blank"
+                    rel="noopener"
+                    class="btn-ghost"
+                    >Official University Website</a
+                  >
+                </div>
+              </div>
+
+              <div
+                class="rounded-3xl overflow-hidden shadow-tile border border-maroon-900/10 min-h-[360px]"
+                data-reveal
+                data-reveal-delay="120"
+              >
+                <iframe
+                  title="Map — University of Saint Anthony, Dr. Ortega St., San Miguel, Iriga City"
+                  src="https://www.google.com/maps?q=University%20of%20Saint%20Anthony%2C%20Dr.%20Ortega%20St.%2C%20San%20Miguel%2C%20Iriga%20City&output=embed"
+                  class="w-full h-full min-h-[360px] border-0"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                ></iframe>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <!-- ============ N. FOOTER ============ -->
+        <footer class="bg-maroon-950 text-cream/85">
+          <div
+            class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid gap-12 md:grid-cols-2 lg:grid-cols-4"
+          >
+            <div>
+              <div class="flex items-center gap-3">
+                <img
+                  src="https://www.usant.edu.ph/images/usant_logo_new.png"
+                  alt="Official seal of the University of Saint Anthony"
+                  class="h-14 w-14 object-contain"
+                  loading="lazy"
+                  width="526"
+                  height="526"
+                />
+                <p class="leading-tight">
+                  <span class="block font-display text-lg font-bold text-cream"
+                    >University Library</span
+                  >
+                  <span
+                    class="block text-xs tracking-[0.16em] uppercase text-gold-300"
+                    >University of Saint Anthony</span
+                  >
+                </p>
+              </div>
+              <p class="mt-5 text-sm leading-relaxed text-cream/70">
+                The central learning hub of the University of Saint Anthony —
+                supporting academic excellence through print and digital
+                collections, research support, and welcoming study spaces.
+              </p>
+              <div class="mt-6 flex items-center gap-3">
+                <a
+                  href="https://www.facebook.com/USANTofficialpage/"
+                  target="_blank"
+                  rel="noopener"
+                  class="social-btn"
+                  aria-label="USANT official Facebook page"
+                  ><i class="fa-brands fa-facebook-f" aria-hidden="true"></i
+                ></a>
+                <a
+                  href="https://www.facebook.com/p/USANT-Library-100083583001649/"
+                  target="_blank"
+                  rel="noopener"
+                  class="social-btn"
+                  aria-label="USANT Library Facebook page"
+                  ><i class="fa-solid fa-book" aria-hidden="true"></i
+                ></a>
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="social-btn"
+                  aria-label="USANT Library System"
+                  ><i
+                    class="fa-solid fa-magnifying-glass"
+                    aria-hidden="true"
+                  ></i
+                ></a>
+              </div>
+            </div>
+
+            <nav aria-label="Quick links">
+              <h3 class="footer-head">Quick Links</h3>
+              <ul class="mt-5 space-y-3 text-sm">
+                <li><a class="footer-link" href="#home">Home</a></li>
+                <li>
+                  <a class="footer-link" href="#about">About the Library</a>
+                </li>
+                <li>
+                  <a class="footer-link" href="#services">Library Services</a>
+                </li>
+                <li>
+                  <a class="footer-link" href="#libraries">Our Libraries</a>
+                </li>
+                <li>
+                  <a class="footer-link" href="#policies">Library Policies</a>
+                </li>
+              </ul>
+            </nav>
+
+            <nav aria-label="Library resources">
+              <h3 class="footer-head">Library Resources</h3>
+              <ul class="mt-5 space-y-3 text-sm">
+                <li>
+                  <a
+                    class="footer-link"
+                    href="https://library.usant.edu.ph/"
+                    target="_blank"
+                    rel="noopener"
+                    >Online Library Catalog</a
+                  >
+                </li>
+                <li>
+                  <a class="footer-link" href="#resources">Digital Resources</a>
+                </li>
+                <li>
+                  <a class="footer-link" href="#contact">Research Assistance</a>
+                </li>
+                <li>
+                  <a class="footer-link" href="#announcements"
+                    >Library Announcements</a
+                  >
+                </li>
+              </ul>
+            </nav>
+
+            <div>
+              <h3 class="footer-head">Contact Information</h3>
+              <ul class="mt-5 space-y-4 text-sm">
+                <li class="flex gap-3">
+                  <i
+                    class="fa-solid fa-location-dot text-gold-400 mt-1"
+                    aria-hidden="true"
+                  ></i
+                  ><span
+                    >Dr. Ortega St., San Miguel,<br />Iriga City 4431,
+                    Philippines</span
+                  >
+                </li>
+                <li class="flex gap-3">
+                  <i
+                    class="fa-solid fa-phone text-gold-400 mt-1"
+                    aria-hidden="true"
+                  ></i
+                  ><a href="tel:+63542051234" class="footer-link"
+                    >(054) 205-1234</a
+                  >
+                </li>
+                <li class="flex gap-3">
+                  <i
+                    class="fa-solid fa-envelope text-gold-400 mt-1"
+                    aria-hidden="true"
+                  ></i
+                  ><a href="mailto:info@usant.edu.ph" class="footer-link"
+                    >info@usant.edu.ph</a
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="border-t border-cream/10">
+            <div
+              class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-cream/60"
+            >
+              <p>© 2026 University of Saint Anthony. All Rights Reserved.</p>
+              <p class="flex items-center gap-2">
+                <a
+                  href="https://www.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="hover:text-gold-300 transition-colors"
+                  >www.usant.edu.ph</a
+                >
+                <span aria-hidden="true">·</span>
+                <a
+                  href="https://library.usant.edu.ph/"
+                  target="_blank"
+                  rel="noopener"
+                  class="hover:text-gold-300 transition-colors"
+                  >library.usant.edu.ph</a
+                >
+              </p>
+            </div>
+          </div>
+        </footer>
+
+        <!-- Back to top -->
+        <button
+          id="backToTop"
+          type="button"
+          class="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-maroon-700 text-cream shadow-lift opacity-0 pointer-events-none translate-y-4 transition-all duration-300 hover:bg-gold-400 hover:text-maroon-950"
+          aria-label="Back to top"
+        >
+          <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+        </button>
+
+        <noscript
+          ><style>
+            .acc-panel {
+              max-height: none !important;
+            }
+            .hero-anim {
+              opacity: 1 !important;
+              transform: none !important;
+            }
+            [data-reveal] {
+              opacity: 1 !important;
+              transform: none !important;
+            }
+          </style></noscript
+        >
+        <script src="js/main.js"></script>
+      </body>
+    </html>
+
+    <script>
+      /* ============================================================
+main.js — vanilla ES6+ interactions for the USANT Library homepage
+1 mobile nav · 2 sticky nav · 3 smooth scroll · 4 scrollspy
+5 policies accordion · 6 announcements carousel · 7 back-to-top
+8 scroll reveal · 9 hover/keyboard support · 10 live hours status
+============================================================ */
+      (function () {
+        "use strict";
+
+        var prefersReduced = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        var $ = function (sel, ctx) {
+          return (ctx || document).querySelector(sel);
+        };
+        var $$ = function (sel, ctx) {
+          return Array.prototype.slice.call(
+            (ctx || document).querySelectorAll(sel),
+          );
+        };
+
+        /* ---------- 2. Sticky navigation shadow ---------- */
+        var header = $("#siteHeader");
+        var backToTop = $("#backToTop");
+
+        function onScroll() {
+          if (header)
+            header.classList.toggle("is-scrolled", window.scrollY > 10);
+          if (backToTop) {
+            var show = window.scrollY > 600;
+            backToTop.classList.toggle("opacity-0", !show);
+            backToTop.classList.toggle("pointer-events-none", !show);
+            backToTop.classList.toggle("translate-y-4", !show);
+          }
+        }
+        window.addEventListener("scroll", onScroll, { passive: true });
+
+        /* ---------- 1. Responsive mobile navigation ---------- */
+        var menuBtn = $("#menuBtn");
+        var mobileMenu = $("#mobileMenu");
+
+        function setMenu(open) {
+          if (!mobileMenu || !menuBtn) return;
+          mobileMenu.classList.toggle("hidden", !open);
+          menuBtn.setAttribute("aria-expanded", String(open));
+          menuBtn.setAttribute(
+            "aria-label",
+            open ? "Close navigation menu" : "Open navigation menu",
+          );
+          menuBtn.querySelector("i").className = open
+            ? "fa-solid fa-xmark text-lg"
+            : "fa-solid fa-bars text-lg";
+        }
+        if (menuBtn) {
+          menuBtn.addEventListener("click", function () {
+            setMenu(mobileMenu.classList.contains("hidden"));
+          });
+        }
+        $$("#mobileMenu a").forEach(function (link) {
+          link.addEventListener("click", function () {
+            setMenu(false);
+          });
+        });
+
+        /* ---------- 10. Mobile-friendly dropdowns ---------- */
+        $$(".m-sub-toggle").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var panel = document.getElementById(
+              btn.getAttribute("aria-controls"),
+            );
+            var open = btn.getAttribute("aria-expanded") === "true";
+            btn.setAttribute("aria-expanded", String(!open));
+            if (panel) panel.classList.toggle("hidden", open);
+          });
+        });
+
+        /* ---------- Desktop dropdowns (hover + click + keyboard) ---------- */
+        $$(".dd-toggle").forEach(function (btn) {
+          var item = btn.parentElement;
+          btn.addEventListener("click", function (event) {
+            event.stopPropagation();
+            var open = item.classList.toggle("dd-open");
+            btn.setAttribute("aria-expanded", String(open));
+          });
+        });
+        $$(".dropdown a").forEach(function (link) {
+          link.addEventListener("click", function () {
+            var item = link.closest(".group");
+            if (item) {
+              item.classList.remove("dd-open");
+              var toggle = item.querySelector(".dd-toggle");
+              if (toggle) toggle.setAttribute("aria-expanded", "false");
+            }
+          });
+        });
+        function closeDropdowns() {
+          $$(".group.dd-open").forEach(function (item) {
+            item.classList.remove("dd-open");
+            var toggle = item.querySelector(".dd-toggle");
+            if (toggle) toggle.setAttribute("aria-expanded", "false");
+          });
+        }
+        document.addEventListener("click", function (event) {
+          $$(".group.dd-open").forEach(function (item) {
+            if (!item.contains(event.target)) {
+              item.classList.remove("dd-open");
+              var toggle = item.querySelector(".dd-toggle");
+              if (toggle) toggle.setAttribute("aria-expanded", "false");
+            }
+          });
+        });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape") {
+            closeDropdowns();
+            setMenu(false);
+          }
+        });
+
+        /* ---------- 4. Active navigation indicator (scrollspy) ---------- */
+        var navLinks = $$(".nav-link").filter(function (el) {
+          var href = el.getAttribute("href");
+          return href && href.charAt(0) === "#";
+        });
+        var spyMap = {};
+        navLinks.forEach(function (link) {
+          spyMap[link.getAttribute("href").slice(1)] = link;
+        });
+        var spySections = Object.keys(spyMap)
+          .map(function (id) {
+            return document.getElementById(id);
+          })
+          .filter(Boolean);
+
+        if ("IntersectionObserver" in window && spySections.length) {
+          var spyObserver = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  navLinks.forEach(function (link) {
+                    link.classList.remove("active");
+                  });
+                  var active = spyMap[entry.target.id];
+                  if (active) active.classList.add("active");
+                }
+              });
+            },
+            { rootMargin: "-40% 0px -55% 0px" },
+          );
+          spySections.forEach(function (section) {
+            spyObserver.observe(section);
+          });
+        }
+
+        /* ---------- 5. Library policies accordion ---------- */
+        var accButtons = $$(".acc-btn");
+        function setAccordion(btn, open) {
+          var panel = document.getElementById(
+            btn.getAttribute("aria-controls"),
+          );
+          if (!panel) return;
+          btn.setAttribute("aria-expanded", String(open));
+          panel.style.maxHeight = open ? panel.scrollHeight + "px" : "0px";
+        }
+        accButtons.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var wasOpen = btn.getAttribute("aria-expanded") === "true";
+            accButtons.forEach(function (other) {
+              if (other !== btn) setAccordion(other, false);
+            });
+            setAccordion(btn, !wasOpen);
+          });
+        });
+        window.addEventListener("resize", function () {
+          accButtons.forEach(function (btn) {
+            if (btn.getAttribute("aria-expanded") === "true") {
+              var panel = document.getElementById(
+                btn.getAttribute("aria-controls"),
+              );
+              if (panel) panel.style.maxHeight = panel.scrollHeight + "px";
+            }
+          });
+        });
+
+        /* ---------- 6. Announcements carousel ---------- */
+        var track = $("#annTrack");
+        if (track) {
+          var cards = $$(".ann-card", track);
+          var prevBtn = $("#annPrev");
+          var nextBtn = $("#annNext");
+          var dotsWrap = $("#annDots");
+
+          var trackGap = function () {
+            var style = getComputedStyle(track);
+            return parseFloat(style.columnGap || style.gap) || 20;
+          };
+          var step = function () {
+            return cards[0].getBoundingClientRect().width + trackGap();
+          };
+          var visibleCount = function () {
+            return Math.max(1, Math.round(track.clientWidth / step()));
+          };
+          var maxIndex = function () {
+            return Math.max(0, cards.length - visibleCount());
+          };
+          var currentIndex = function () {
+            return Math.min(maxIndex(), Math.round(track.scrollLeft / step()));
+          };
+          var behavior = function () {
+            return prefersReduced ? "auto" : "smooth";
+          };
+
+          function syncCarousel() {
+            var idx = currentIndex();
+            $$("button", dotsWrap).forEach(function (dot, i) {
+              dot.classList.toggle("is-active", i === idx);
+              dot.setAttribute("aria-current", i === idx ? "true" : "false");
+            });
+            if (prevBtn) prevBtn.disabled = track.scrollLeft < 10;
+            if (nextBtn)
+              nextBtn.disabled =
+                track.scrollLeft > track.scrollWidth - track.clientWidth - 10;
+          }
+          function buildDots() {
+            if (!dotsWrap) return;
+            dotsWrap.innerHTML = "";
+            for (var i = 0; i <= maxIndex(); i++) {
+              (function (index) {
+                var dot = document.createElement("button");
+                dot.type = "button";
+                dot.setAttribute(
+                  "aria-label",
+                  "Go to announcement group " + (index + 1),
+                );
+                dot.addEventListener("click", function () {
+                  track.scrollTo({
+                    left: index * step(),
+                    behavior: behavior(),
+                  });
+                });
+                dotsWrap.appendChild(dot);
+              })(i);
+            }
+            syncCarousel();
+          }
+          if (prevBtn)
+            prevBtn.addEventListener("click", function () {
+              track.scrollBy({ left: -step(), behavior: behavior() });
+            });
+          if (nextBtn)
+            nextBtn.addEventListener("click", function () {
+              track.scrollBy({ left: step(), behavior: behavior() });
+            });
+
+          var ticking = false;
+          track.addEventListener(
+            "scroll",
+            function () {
+              if (ticking) return;
+              ticking = true;
+              requestAnimationFrame(function () {
+                ticking = false;
+                syncCarousel();
+              });
+            },
+            { passive: true },
+          );
+          window.addEventListener("resize", buildDots);
+          buildDots();
+        }
+
+        /* ---------- 7. Back-to-top button ---------- */
+        if (backToTop) {
+          backToTop.addEventListener("click", function () {
+            window.scrollTo({
+              top: 0,
+              behavior: prefersReduced ? "auto" : "smooth",
+            });
+          });
+        }
+
+        /* ---------- 8. Scroll reveal animations ---------- */
+        var revealEls = $$("[data-reveal]");
+        if ("IntersectionObserver" in window) {
+          var revealObserver = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  var el = entry.target;
+                  var delay = el.getAttribute("data-reveal-delay");
+                  if (delay) el.style.transitionDelay = delay + "ms";
+                  el.classList.add("is-visible");
+                  revealObserver.unobserve(el);
+                }
+              });
+            },
+            { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
+          );
+          revealEls.forEach(function (el) {
+            revealObserver.observe(el);
+          });
+        } else {
+          revealEls.forEach(function (el) {
+            el.classList.add("is-visible");
+          });
+        }
+
+        /* ---------- Live operating-hours status (Asia/Manila) ---------- */
+        var DAY_INDEX = {
+          Sun: 0,
+          Mon: 1,
+          Tue: 2,
+          Wed: 3,
+          Thu: 4,
+          Fri: 5,
+          Sat: 6,
+        };
+        var DAY_NAMES = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+
+        function manilaNow() {
+          var fmt = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Manila",
+            weekday: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+          var parts = fmt.formatToParts(new Date());
+          var pick = function (type) {
+            var found = parts.filter(function (p) {
+              return p.type === type;
+            })[0];
+            return found ? found.value : "";
+          };
+          return {
+            day: DAY_INDEX[pick("weekday")],
+            minutes:
+              parseInt(pick("hour"), 10) * 60 + parseInt(pick("minute"), 10),
+          };
+        }
+        function formatTime(mins) {
+          var h = Math.floor(mins / 60);
+          var m = mins % 60;
+          var suffix = h >= 12 ? "PM" : "AM";
+          var hour12 = h % 12;
+          if (hour12 === 0) hour12 = 12;
+          return hour12 + ":" + (m < 10 ? "0" : "") + m + " " + suffix;
+        }
+        function updateHours() {
+          var now = manilaNow();
+          $$(".hours-row").forEach(function (row) {
+            var pill = row.querySelector("[data-status]");
+            if (!pill) return;
+            var days = row.getAttribute("data-days").split(",").map(Number);
+            var openParts = row.getAttribute("data-open").split(":");
+            var closeParts = row.getAttribute("data-close").split(":");
+            var open = +openParts[0] * 60 + +openParts[1];
+            var close = +closeParts[0] * 60 + +closeParts[1];
+
+            if (
+              days.indexOf(now.day) !== -1 &&
+              now.minutes >= open &&
+              now.minutes < close
+            ) {
+              pill.textContent = "Open now · until " + formatTime(close);
+              pill.className = "status-pill is-open";
+            } else {
+              var label;
+              if (days.indexOf(now.day) !== -1 && now.minutes < open) {
+                label = "opens today " + formatTime(open);
+              } else {
+                label = "opens " + formatTime(open);
+                for (var d = 1; d <= 7; d++) {
+                  var nextDay = (now.day + d) % 7;
+                  if (days.indexOf(nextDay) !== -1) {
+                    label =
+                      "opens " +
+                      (d === 1 ? "tomorrow" : DAY_NAMES[nextDay]) +
+                      " " +
+                      formatTime(open);
+                    break;
+                  }
+                }
+              }
+              pill.textContent = "Closed · " + label;
+              pill.className = "status-pill is-closed";
+            }
+          });
+        }
+        updateHours();
+        setInterval(updateHours, 60000);
+
+        /* ---------- Init ---------- */
+        onScroll();
+      })();
+    </script>
+  </body>
+</html>
