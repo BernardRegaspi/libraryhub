@@ -136,22 +136,28 @@ export function PoliciesSection() {
                 <h3>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between gap-4 py-5 pr-1 text-left text-base font-semibold text-ink transition-colors hover:text-maroon-700 aria-expanded:text-maroon-700"
+                    className="flex w-full items-center justify-between gap-4 rounded-lg px-1 py-5 text-left text-base font-semibold text-ink transition-all duration-300 ease-out hover:bg-maroon-50/80 hover:text-maroon-700 aria-expanded:text-maroon-700"
                     aria-expanded={open}
                     aria-controls={panelId}
                     onClick={() => setOpenId(open ? null : policy.id)}
                   >
                     {policy.title}
                     <span
-                      className={`text-lg leading-none text-gold-600 transition-transform duration-300 ${open ? "rotate-45" : ""}`}
+                      className={`text-lg leading-none text-gold-600 transition-all duration-300 ease-out ${open ? "rotate-45" : ""}`}
                       aria-hidden
                     >
                       +
                     </span>
                   </button>
                 </h3>
-                {open ? (
-                  <div id={panelId} role="region" className="pr-1 pb-5">
+                <div
+                  id={panelId}
+                  role="region"
+                  aria-hidden={!open}
+                  inert={!open}
+                  className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+                >
+                  <div className={`overflow-hidden pr-1 ${open ? "pb-5" : ""}`}>
                     {policy.kind === "list" ? (
                       <ul className="space-y-2.5">
                         {policy.items.map((item) => (
@@ -200,7 +206,7 @@ export function PoliciesSection() {
                       </>
                     )}
                   </div>
-                ) : null}
+                </div>
               </div>
             );
           })}

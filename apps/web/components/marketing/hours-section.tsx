@@ -192,7 +192,7 @@ export function HoursSection() {
             return (
               <li
                 key={row.name}
-                className="flex items-center gap-4 rounded-[1.1rem] border border-gold-400/18 bg-maroon-900/55 px-5 py-4 transition-[border-color,transform] duration-300 hover:translate-x-1 hover:border-gold-400/50"
+                className="flex items-center gap-4 rounded-[1.1rem] border border-gold-400/18 bg-maroon-900/55 px-5 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:border-gold-400/50"
               >
                 <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gold-400 text-maroon-950">
                   <HugeiconsIcon icon={Clock01Icon} size={18} strokeWidth={1.75} />

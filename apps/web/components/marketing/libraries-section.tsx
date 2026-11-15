@@ -102,7 +102,7 @@ export function LibrariesSection() {
             <article
               key={library.id}
               id={library.id}
-              className="group scroll-mt-28 overflow-hidden rounded-[1.4rem] border border-maroon-700/10 bg-white shadow-[0_10px_40px_-12px_rgba(34,26,24,0.16)] transition-[transform,box-shadow] duration-300 hover:-translate-y-2 hover:shadow-[0_30px_70px_-24px_rgba(125,21,25,0.45)]"
+              className="group scroll-mt-28 overflow-hidden rounded-[1.4rem] border border-maroon-700/10 bg-white shadow-[0_10px_40px_-12px_rgba(34,26,24,0.16)] transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-[0_30px_70px_-24px_rgba(125,21,25,0.45)]"
             >
               <div
                 role="img"
@@ -124,7 +124,7 @@ export function LibrariesSection() {
                   href={KOHA_LIBRARIES_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 text-xs font-bold tracking-[0.06em] text-maroon-700 uppercase transition-[color,gap] hover:gap-3 hover:text-gold-600"
+                  className="mt-4 inline-flex items-center gap-2 text-xs font-bold tracking-[0.06em] text-maroon-700 uppercase transition-all duration-300 ease-out hover:gap-3 hover:text-gold-600"
                 >
                   Explore Library
                   <HugeiconsIcon icon={ArrowRight01Icon} size={14} />

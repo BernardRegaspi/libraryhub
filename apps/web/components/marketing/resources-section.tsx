@@ -54,7 +54,7 @@ export function ResourcesSection() {
                   href={KOHA_SEARCH_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-2xl border border-gold-400/25 bg-maroon-950/35 px-4 py-4 text-sm font-semibold text-cream transition-colors hover:-translate-y-0.5 hover:border-gold-400 hover:bg-gold-400 hover:text-maroon-950"
+                  className="group flex items-center gap-3 rounded-2xl border border-gold-400/25 bg-maroon-950/35 px-4 py-4 text-sm font-semibold text-cream transition-all duration-300 ease-out hover:-translate-y-1 hover:border-gold-400 hover:bg-gold-400 hover:text-maroon-950"
                 >
                   <HugeiconsIcon
                     icon={resource.icon}

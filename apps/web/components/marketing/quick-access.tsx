@@ -24,7 +24,7 @@ function QuickAccessTile(tile: (typeof QUICK_ACCESS_TILES)[number]) {
   const { title, description, href, external, icon } = tile;
   const Icon = ICONS[icon];
   const className =
-    "group flex gap-4 rounded-2xl border border-maroon-700/10 bg-white p-5 shadow-[0_18px_50px_-18px_rgba(34,26,24,0.28)] transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1.5 hover:border-gold-400/65 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.45)]";
+    "group flex gap-4 rounded-2xl border border-maroon-700/10 bg-white p-5 shadow-[0_18px_50px_-18px_rgba(34,26,24,0.28)] transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-gold-400/65 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.45)]";
 
   const inner = (
     <>

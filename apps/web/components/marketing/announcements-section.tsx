@@ -136,7 +136,7 @@ export function AnnouncementsSection() {
           {ANNOUNCEMENTS.map((item) => (
             <article
               key={item.title}
-              className="flex w-[85vw] max-w-[26rem] shrink-0 snap-start flex-col overflow-hidden rounded-[1.4rem] border border-maroon-700/10 bg-white shadow-[0_10px_40px_-12px_rgba(34,26,24,0.16)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.35)] md:w-96 lg:w-[calc((100%-2.5rem)/3)]"
+              className="flex w-[85vw] max-w-[26rem] shrink-0 snap-start flex-col overflow-hidden rounded-[1.4rem] border border-maroon-700/10 bg-white shadow-[0_10px_40px_-12px_rgba(34,26,24,0.16)] transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.35)] md:w-96 lg:w-[calc((100%-2.5rem)/3)]"
             >
               <div className={`relative h-[180px] bg-gradient-to-br ${item.art}`}>
                 <span className="absolute top-4 left-4 rounded-full bg-maroon-950/85 px-3 py-1 text-[0.68rem] font-bold tracking-[0.1em] text-gold-300 uppercase">

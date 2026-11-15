@@ -91,12 +91,12 @@ export function ServicesSection() {
           {SERVICES.map((service) => (
             <article
               key={service.number}
-              className="group relative overflow-hidden rounded-[1.25rem] border border-maroon-700/10 bg-white p-7 transition-[transform,box-shadow] duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:origin-left before:scale-x-0 before:bg-gradient-to-r before:from-gold-400 before:to-gold-300 before:transition-transform before:duration-300 hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.35)] hover:before:scale-x-100"
+              className="group relative overflow-hidden rounded-[1.25rem] border border-maroon-700/10 bg-white p-7 transition-all duration-300 ease-out before:absolute before:inset-x-0 before:top-0 before:h-1 before:origin-left before:scale-x-0 before:bg-gradient-to-r before:from-gold-400 before:to-gold-300 before:transition-all before:duration-300 before:ease-out hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-22px_rgba(125,21,25,0.35)] hover:before:scale-x-100"
             >
               <span className="font-display absolute top-4 right-5 text-4xl font-extrabold text-maroon-700/12">
                 {service.number}
               </span>
-              <span className="inline-flex h-[3.2rem] w-[3.2rem] items-center justify-center rounded-2xl bg-maroon-700 text-gold-400 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-6">
+              <span className="inline-flex h-[3.2rem] w-[3.2rem] items-center justify-center rounded-2xl bg-maroon-700 text-gold-400 transition-all duration-300 ease-out group-hover:scale-105 group-hover:-rotate-6">
                 <HugeiconsIcon icon={service.icon} size={22} strokeWidth={1.75} />
               </span>
               <h3 className="font-display mt-4 text-xl font-bold text-ink">
@@ -116,7 +116,7 @@ export function ServicesSection() {
                 <HugeiconsIcon
                   icon={service.external ? ArrowUpRight01Icon : ArrowRight01Icon}
                   size={14}
-                  className="transition-transform group-hover:translate-x-1"
+                  className="transition-all duration-300 ease-out group-hover:translate-x-1"
                 />
               </a>
             </article>

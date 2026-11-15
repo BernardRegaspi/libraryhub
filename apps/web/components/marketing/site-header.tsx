@@ -11,6 +11,14 @@ import {
   Menu03Icon,
 } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
 import {
   KOHA_CATALOG_URL,
@@ -20,90 +28,31 @@ import {
   type NavLinkItem,
 } from "@/lib/marketing/constants";
 
-function DesktopNavLink({
-  href,
-  children,
-  external,
-}: {
-  href: string;
-  children: React.ReactNode;
-  external?: boolean;
-}) {
-  const className =
-    "relative inline-flex items-center whitespace-nowrap rounded-md px-2 py-2 text-[13px] font-medium text-ink transition-colors hover:text-maroon-700 xl:px-3 xl:text-[15px] after:absolute after:inset-x-3 after:bottom-1.5 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-gold-400 after:transition-transform hover:after:scale-x-100";
+const topLinkClass =
+  "relative h-auto rounded-md bg-transparent px-2 py-2 text-[13px] font-medium whitespace-nowrap text-ink hover:bg-transparent hover:text-maroon-700 data-open:bg-transparent data-open:text-maroon-700 data-popup-open:bg-transparent data-popup-open:text-maroon-700 xl:px-3 xl:text-[15px] after:absolute after:inset-x-3 after:bottom-1 after:h-0.5 after:origin-left after:scale-x-0 after:rounded-full after:bg-gold-400 after:transition-all after:duration-300 after:ease-out hover:after:scale-x-100 data-open:after:scale-x-100 data-popup-open:after:scale-x-100";
 
-  if (external) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {children}
-      </a>
-    );
-  }
+const menuLinkClass =
+  "rounded-lg px-3 py-2 text-sm text-ink hover:bg-maroon-50 hover:text-maroon-700 focus:bg-maroon-50 focus:text-maroon-700";
 
+function MenuItemLink({ item }: { item: NavLinkItem }) {
   return (
-    <a href={href} className={className}>
-      {children}
-    </a>
-  );
-}
-
-function NavDropdown({ entry }: { entry: Extract<NavEntry, { type: "dropdown" }> }) {
-  return (
-    <li className="group relative">
-      <button
-        type="button"
-        className="relative inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-2 text-[13px] font-medium text-ink transition-colors hover:text-maroon-700 xl:px-3 xl:text-[15px]"
-        aria-haspopup="true"
-      >
-        {entry.label}
-        <span className="text-[10px] transition-transform group-hover:rotate-180">
-          ▾
-        </span>
-      </button>
-      <ul
-        role="menu"
-        className="invisible absolute top-full left-0 z-60 mt-2 min-w-64 translate-y-2 rounded-2xl border border-maroon-700/10 bg-white p-2 opacity-0 shadow-[0_24px_60px_-20px_rgba(34,26,24,0.3)] transition-all group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100"
-      >
-        {entry.items.map((item) => (
-          <li key={item.label} role="none">
-            <DropdownLink item={item} />
-          </li>
-        ))}
-      </ul>
-    </li>
-  );
-}
-
-function DropdownLink({ item }: { item: NavLinkItem }) {
-  const className =
-    "block rounded-lg px-3 py-2 text-sm text-ink transition-colors hover:bg-maroon-50 hover:text-maroon-700";
-  if (item.external) {
-    return (
-      <a
-        role="menuitem"
-        href={item.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {item.label}
+    <NavigationMenuLink
+      href={item.href}
+      closeOnClick
+      className={menuLinkClass}
+      {...(item.external
+        ? { target: "_blank", rel: "noopener noreferrer" }
+        : {})}
+    >
+      {item.label}
+      {item.external ? (
         <HugeiconsIcon
           icon={ArrowUpRight01Icon}
-          className="ml-1 inline opacity-60"
+          className="ml-1 opacity-60"
           size={12}
         />
-      </a>
-    );
-  }
-  return (
-    <a role="menuitem" href={item.href} className={className}>
-      {item.label}
-    </a>
+      ) : null}
+    </NavigationMenuLink>
   );
 }
 
@@ -151,7 +100,7 @@ function MobileNavEntry({
         aria-expanded={open}
       >
         {entry.label}
-        <span className={cn("text-xs transition-transform", open && "rotate-180")}>
+        <span className={cn("text-xs transition-all duration-300 ease-out", open && "rotate-180")}>
           ▾
         </span>
       </button>
@@ -211,7 +160,7 @@ export function SiteHeader() {
         scrolled && "shadow-[0_12px_32px_-14px_rgba(46,8,10,0.28)]",
       )}
     >
-      <nav aria-label="Primary" className="site-container">
+      <div className="site-container">
         <div className="flex h-[76px] min-w-0 items-center justify-between gap-2 sm:gap-3 xl:gap-4">
           <Link
             href="#home"
@@ -223,7 +172,7 @@ export function SiteHeader() {
               alt="Official seal of the University of Saint Anthony"
               width={48}
               height={48}
-              className="h-12 w-12 shrink-0 object-contain transition-transform duration-300 group-hover:scale-105"
+              className="h-12 w-12 shrink-0 object-contain transition-all duration-300 ease-out group-hover:scale-105"
               priority
             />
             <span className="min-w-0 leading-tight">
@@ -236,19 +185,44 @@ export function SiteHeader() {
             </span>
           </Link>
 
-          <ul className="hidden min-w-0 shrink items-center gap-0.5 xl:flex xl:gap-1">
-            {PRIMARY_NAV.map((entry) =>
-              entry.type === "link" ? (
-                <li key={entry.label}>
-                  <DesktopNavLink href={entry.href} external={entry.external}>
-                    {entry.label}
-                  </DesktopNavLink>
-                </li>
-              ) : (
-                <NavDropdown key={entry.label} entry={entry} />
-              ),
-            )}
-          </ul>
+          <NavigationMenu
+            aria-label="Primary"
+            className="hidden max-w-none flex-none xl:flex"
+          >
+            <NavigationMenuList className="gap-0.5 xl:gap-1">
+              {PRIMARY_NAV.map((entry) =>
+                entry.type === "link" ? (
+                  <NavigationMenuItem key={entry.label}>
+                    <NavigationMenuLink
+                      href={entry.href}
+                      closeOnClick
+                      className={topLinkClass}
+                      {...(entry.external
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
+                    >
+                      {entry.label}
+                    </NavigationMenuLink>
+                  </NavigationMenuItem>
+                ) : (
+                  <NavigationMenuItem key={entry.label} value={entry.label}>
+                    <NavigationMenuTrigger className={topLinkClass}>
+                      {entry.label}
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent className="min-w-64">
+                      <ul className="grid gap-0.5">
+                        {entry.items.map((item) => (
+                          <li key={item.label}>
+                            <MenuItemLink item={item} />
+                          </li>
+                        ))}
+                      </ul>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+                ),
+              )}
+            </NavigationMenuList>
+          </NavigationMenu>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Button
@@ -284,7 +258,7 @@ export function SiteHeader() {
             </Button>
           </div>
         </div>
-      </nav>
+      </div>
 
       <div
         id="mobile-menu"

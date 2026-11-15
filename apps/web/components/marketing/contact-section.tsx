@@ -21,7 +21,7 @@ export function ContactSection() {
             below.
           </p>
           <ul className="mt-9 space-y-4">
-            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4">
+            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-maroon-700/25 hover:shadow-[0_18px_40px_-20px_rgba(125,21,25,0.35)]">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-maroon-50 text-maroon-700">
                 <HugeiconsIcon icon={Location01Icon} size={18} />
               </span>
@@ -34,7 +34,7 @@ export function ContactSection() {
                 </span>
               </span>
             </li>
-            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4">
+            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-maroon-700/25 hover:shadow-[0_18px_40px_-20px_rgba(125,21,25,0.35)]">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-maroon-50 text-maroon-700">
                 <HugeiconsIcon icon={CallIcon} size={18} />
               </span>
@@ -48,7 +48,7 @@ export function ContactSection() {
                 </a>
               </span>
             </li>
-            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4">
+            <li className="flex items-start gap-4 rounded-[1.1rem] border border-maroon-700/10 bg-white px-5 py-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-maroon-700/25 hover:shadow-[0_18px_40px_-20px_rgba(125,21,25,0.35)]">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-maroon-50 text-maroon-700">
                 <HugeiconsIcon icon={Mail01Icon} size={18} />
               </span>
