@@ -1,8 +1,13 @@
 export const KOHA_CATALOG_URL = "https://library.usant.edu.ph/";
 export const KOHA_SEARCH_URL =
   "https://library.usant.edu.ph/cgi-bin/koha/opac-search.pl";
+export const KOHA_LIBRARIES_URL =
+  "https://library.usant.edu.ph/cgi-bin/koha/opac-library.pl";
 export const USANT_HOME_URL = "https://www.usant.edu.ph/";
 export const USANT_LIBRARY_URL = "https://www.usant.edu.ph/library";
+export const USANT_FACEBOOK_URL = "https://www.facebook.com/USANTofficialpage/";
+export const LIBRARY_FACEBOOK_URL =
+  "https://www.facebook.com/p/USANT-Library-100083583001649/";
 export const USANT_LOGO_URL =
   "https://www.usant.edu.ph/images/usant_logo_new.png";
 export const LIBRARY_BANNER_URL =
@@ -20,8 +25,8 @@ export type NavEntry =
 
 export const PRIMARY_NAV: NavEntry[] = [
   { type: "link", label: "Home", href: "#home" },
-  { type: "link", label: "About the Library", href: "#about" },
-  { type: "link", label: "Library Services", href: "#services" },
+  { type: "link", label: "About", href: "#about" },
+  { type: "link", label: "Services", href: "#services" },
   {
     type: "dropdown",
     label: "Our Libraries",

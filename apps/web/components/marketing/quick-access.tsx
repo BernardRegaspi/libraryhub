@@ -10,7 +10,6 @@ import {
   SearchingIcon,
 } from "@hugeicons/core-free-icons";
 import { QUICK_ACCESS_TILES } from "@/lib/marketing/constants";
-import { cn } from "@/lib/utils";
 
 const ICONS = {
   search: SearchingIcon,
@@ -75,10 +74,7 @@ export function QuickAccess() {
     <section
       id="quick"
       aria-label="Quick access"
-      className={cn(
-        "relative z-10 pb-6",
-        "mt-0 md:-mt-[4.5rem] xl:-mt-24",
-      )}
+      className="scroll-mt-28 bg-cream pt-8 pb-6 md:pt-12"
     >
       <div className="site-container">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 md:gap-5">

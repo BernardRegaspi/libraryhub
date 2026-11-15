@@ -15,11 +15,15 @@
   --color-maroon-100: #f6e6e6;
   --color-maroon-700: #7d1519;
   --color-maroon-800: #661114;
+  --color-maroon-900: #4c0d10;
   --color-maroon-950: #2e080a;
+  --color-gold-100: #fff3c8;
   --color-gold-300: #ffd25e;
   --color-gold-400: #faa61a;
   --color-gold-600: #b96a00;
+  --color-gold-700: #945300;
   --color-cream: #faf7f1;
+  --color-parchment: #f3ece1;
   --color-ink: #221a18;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

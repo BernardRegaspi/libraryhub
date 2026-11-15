@@ -55,7 +55,7 @@ export function AboutSection() {
           <ol className="mt-8 space-y-4">
             {LIBRARY_GOALS.map((goal, index) => (
               <li key={goal} className="flex gap-4">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-maroon-700 text-sm font-bold text-gold-300">
+                <span className="font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-maroon-700 text-sm font-bold text-gold-300">
                   {index + 1}
                 </span>
                 <p className="pt-1 text-ink/80">{goal}</p>
@@ -80,7 +80,7 @@ export function AboutSection() {
             </Button>
             <Button
               nativeButton={false}
-              render={<a href="#contact" />}
+              render={<a href="#mission" />}
               variant="outline"
               className="h-10 rounded-full border-maroon-700/20 bg-transparent px-6 text-sm font-semibold text-ink hover:bg-maroon-50"
             >

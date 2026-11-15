@@ -31,7 +31,7 @@ export function HeroSection() {
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-maroon-950/90 to-transparent" />
       </div>
 
-      <div className="site-container pb-28 pt-20 sm:pb-36 md:pb-52 md:pt-28 lg:pb-56 xl:pb-44">
+      <div className="site-container pt-16 pb-16 md:pt-24 md:pb-20">
         <div className="max-w-3xl">
           <p className="flex items-center gap-3 text-[12px] font-semibold tracking-[0.28em] text-gold-300 uppercase md:text-sm">
             <span className="h-px w-10 bg-gold-400" aria-hidden />
@@ -112,7 +112,7 @@ export function HeroSection() {
 
       <a
         href="#quick"
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 text-cream/70 transition-colors hover:text-gold-300 sm:bottom-10 md:bottom-14 xl:bottom-24"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 text-cream/70 transition-colors hover:text-gold-300"
         aria-label="Scroll to quick access"
       >
         <HugeiconsIcon
