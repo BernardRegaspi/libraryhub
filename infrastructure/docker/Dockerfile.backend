@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY apps/api/pyproject.toml /app/api/
+COPY apps/api/app /app/api/app
+COPY apps/api/alembic /app/api/alembic
+COPY apps/api/alembic.ini /app/api/
+
+WORKDIR /app/api
+RUN pip install --no-cache-dir -e .
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

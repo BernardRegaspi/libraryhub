@@ -1,1 +1,0 @@
-"""ULMS FastAPI application entrypoint."""

@@ -258,7 +258,7 @@ PostgreSQL is the durable database of record for ULMS-owned records. Koha's Mari
 ```text
 libraryhub/
 │
-├── frontend/
+├── apps/web/                    # Next.js (see also apps/api)
 │   ├── app/
 │   │   ├── (auth)/
 │   │   ├── (dashboard)/
@@ -278,7 +278,7 @@ libraryhub/
 │   ├── public/
 │   └── tests/
 │
-├── backend/
+├── apps/api/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── routes/
@@ -334,10 +334,11 @@ libraryhub/
 │   ├── operations-runbook.md
 │   └── decisions/
 │
-├── docker-compose.yml          # ULMS application stack only; no second standalone postgres service
+├── docker-compose.yml          # Local data services (Postgres/Redis); app images under infrastructure/docker
+├── package.json                # npm workspaces (apps/*)
 ├── .env.example
 ├── .gitignore
-├── plan.md
+├── plan/
 └── README.md
 ```
 

@@ -1,0 +1,101 @@
+---
+description: Development workflow when using Superpowers
+alwaysApply: true
+---
+
+# Superpowers Workflow
+
+When a Superpowers skill is active, follow its workflow and constraints.
+
+## General
+
+- Do not skip required Superpowers stages.
+- Do not implement before the brainstorming/design stage is approved.
+- Do not skip the implementation plan.
+- Prefer small, verifiable changes.
+- Follow TDD when required by the active skill.
+- Verify changes before claiming completion.
+- Do not make speculative changes to fix problems.
+
+## Git commits
+
+When committing (including Superpowers plan steps):
+
+- Never add `Co-authored-by: Cursor <cursoragent@cursor.com>` or any Cursor co-author trailer to the commit message.
+- Commit messages must contain only the intended subject and body for the human author.
+- On Windows, prefer `git commit -F <msgfile>` (or `git commit --only -F <msgfile> -- <paths>`) so the message file is the full and final text.
+- If the environment appends a Cursor co-author trailer anyway, remove it by amending with a clean message file when git safety rules allow (unpushed commit, hooks still run, no forbidden amend cases).
+
+Follow the repo git safety protocol: never skip hooks, never update git config, and only commit when the user asked.
+
+## Model Strategy
+
+Brainstorming models:
+
+- **Claude Fable 5.1** is preferred for `/brainstorm` (intent, approaches, design, spec).
+- **Grok 4.7** may brainstorm when Fable is unavailable (out of tokens, not selected, or the user chooses Grok). Do not refuse that brainstorm, and do not send the user to Fable when Fable is out of tokens.
+
+Building models are **Composer 2.5** and **Grok 4.7**:
+
+- Use Composer 2.5 for normal coding to save tokens.
+- Use Grok 4.7 for hard logic and problems that require hard reasoning.
+- After design approval on Fable, tell the user to switch off Fable before planning or implementation.
+- After design approval on Grok, do not send the user back to Fable. Recommend Composer for routine planning and coding. The user may stay on Grok to plan or implement.
+
+Model selection must never be used as a reason to bypass a Superpowers workflow requirement. Do not claim the Cursor model was changed automatically.
+
+## Brainstorming
+
+During `/brainstorm`:
+
+1. Explore the existing project.
+2. Understand the user's goal.
+3. Ask clarifying questions when necessary.
+4. Identify constraints and success criteria.
+5. Present 2-3 possible approaches.
+6. Explain trade-offs.
+7. Recommend an approach.
+8. Present the design.
+9. Obtain user approval.
+10. Continue to the planning stage according to the Superpowers workflow.
+
+Do not implement the feature during brainstorming.
+
+If the current model is Claude Fable 5.1, stop after design approval. Tell the user to switch to Composer 2.5 for planning and normal implementation, or Grok 4.7 if the build needs hard reasoning. Do not implement on Fable.
+
+If the current model is Grok 4.7 because Fable is unavailable, finish brainstorming on Grok. After approval, recommend Composer 2.5 for routine planning and implementation. Staying on Grok to plan or implement is allowed.
+
+## Planning
+
+During the planning stage:
+
+- Inspect the relevant code.
+- Create a detailed implementation plan.
+- Break work into small tasks.
+- Identify files that need modification.
+- Identify testing requirements.
+- Avoid unnecessary architecture or features.
+
+Prefer Composer 2.5 for writing the plan unless the plan itself requires hard architectural reasoning — then recommend Grok 4.7, then return to Composer to execute.
+
+## Implementation
+
+During implementation:
+
+- Follow the approved design and plan.
+- Prefer minimal changes.
+- Follow existing project conventions.
+- Test changes.
+- Verify behavior before declaring success.
+- Use Composer 2.5 for normal coding.
+- Switch to Grok 4.7 only for hard logic / hard reasoning, then return to Composer.
+
+## Difficult Problems
+
+If implementation reaches a problem requiring substantially deeper reasoning:
+
+- Stop speculative implementation.
+- Explain the problem.
+- Summarize the investigation.
+- Recommend switching to Grok 4.7.
+- After analysis, return to Composer 2.5 for normal implementation.

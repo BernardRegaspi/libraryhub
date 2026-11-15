@@ -1,0 +1,25 @@
+{
+  "name": "libraryhub",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@libraryhub/web",
+    "dev:web": "npm run dev --workspace=@libraryhub/web",
+    "dev:api": "cd apps/api && python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "cd apps/api && python -m alembic upgrade head",
+    "build": "npm run build --workspace=@libraryhub/web",
+    "lint": "npm run lint --workspace=@libraryhub/web",
+    "typecheck": "npm run typecheck --workspace=@libraryhub/web",
+    "test:api": "cd apps/api && pytest",
+    "lint:api": "cd apps/api && ruff check app tests"
+  },
+  "packageManager": "npm@10",
+  "engines": {
+    "node": ">=20"
+  }
+}
