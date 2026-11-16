@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "libraryhub"
+    app_name: str = "Library Hub"
     environment: str = Field(default="development", validation_alias="APP_ENV")
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1"

@@ -23,7 +23,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "libraryhub",
+  title: "Library Hub",
   description: "University Library Management System",
 };
 

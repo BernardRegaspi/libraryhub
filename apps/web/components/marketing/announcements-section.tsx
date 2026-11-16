@@ -52,6 +52,7 @@ const ANNOUNCEMENTS = [
 export function AnnouncementsSection() {
   const trackRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
+  const [maxPage, setMaxPage] = useState(ANNOUNCEMENTS.length - 1);
 
   function pageCount() {
     const track = trackRef.current;
@@ -71,6 +72,7 @@ export function AnnouncementsSection() {
     const gap = 20;
     const step = card ? card.getBoundingClientRect().width + gap : 400;
     const max = pageCount() - 1;
+    setMaxPage(max);
     const next = Math.min(Math.max(index, 0), max);
     track.scrollTo({ left: next * step, behavior: "smooth" });
     setPage(next);
@@ -83,11 +85,12 @@ export function AnnouncementsSection() {
     const gap = 20;
     const step = card ? card.getBoundingClientRect().width + gap : 400;
     const max = pageCount() - 1;
+    setMaxPage(max);
     setPage(Math.min(max, Math.round(track.scrollLeft / step)));
   }
 
   const atStart = page <= 0;
-  const atEnd = page >= pageCount() - 1;
+  const atEnd = page >= maxPage;
 
   return (
     <section

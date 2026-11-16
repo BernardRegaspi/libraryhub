@@ -1,0 +1,36 @@
+---
+description: Strip the Cursor co-author trailer from every commit message
+alwaysApply: true
+---
+
+# Strip Cursor co-author trailer
+
+After every `git commit` or `git commit --amend`, the commit message must not contain `Co-authored-by: Cursor <cursoragent@cursor.com>`.
+
+Do not put that trailer in the message file. Do not amend to remove it: amend runs `git commit` again and the environment appends the trailer a second time.
+
+## After each commit
+
+1. Read the message with `git log -1 --format=%B`.
+2. If the trailer is absent, stop.
+3. If HEAD is already on a remote, stop and tell the user. Do not rewrite published history.
+4. Otherwise replace the commit without `git commit`:
+
+```powershell
+$raw = git log -1 --format=%B
+$clean = (($raw -split "`r?`n") | Where-Object {
+  $_ -notmatch '^\s*Co-authored-by:\s*Cursor\s*<cursoragent@cursor.com>\s*$'
+}) -join "`n"
+$clean = $clean.TrimEnd() + "`n"
+$path = Join-Path (git rev-parse --git-dir) "COMMIT_MSG_CLEAN.txt"
+[System.IO.File]::WriteAllText($path, $clean)
+$tree = (git rev-parse "HEAD^{tree}").Trim()
+$parent = (git rev-parse "HEAD^").Trim()
+$new = (git commit-tree $tree -p $parent -F $path | Select-Object -Last 1).Trim()
+if ($new -notmatch '^[0-9a-f]{40}$') { throw "commit-tree did not return a sha: $new" }
+git update-ref HEAD $new
+Remove-Item -Force $path
+```
+
+5. Run `git log -1 --format=%B` again. The subject and body stay. The Cursor trailer is gone.
+6. Leave the original commit's hooks as already run. Do not use `--no-verify`. Do not change git config.
