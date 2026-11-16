@@ -132,6 +132,32 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.ulms {
+  --background: #faf7f1;
+  --foreground: #221a18;
+  --card: #ffffff;
+  --card-foreground: #221a18;
+  --primary: #7d1519;
+  --primary-foreground: #faf7f1;
+  --secondary: #fbf4f4;
+  --secondary-foreground: #7d1519;
+  --muted: #f3ece1;
+  --muted-foreground: rgb(34 26 24 / 60%);
+  --accent: #faa61a;
+  --accent-foreground: #2e080a;
+  --border: rgb(125 21 25 / 15%);
+  --input: rgb(125 21 25 / 20%);
+  --ring: #faa61a;
+  --sidebar: #2e080a;
+  --sidebar-foreground: #faf7f1;
+  --sidebar-primary: #faa61a;
+  --sidebar-primary-foreground: #2e080a;
+  --sidebar-accent: #faa61a;
+  --sidebar-accent-foreground: #2e080a;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #faa61a;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
