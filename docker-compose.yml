@@ -1,5 +1,5 @@
-# Local data services for ULMS development (PostgreSQL + optional Redis).
-# Application containers are defined under infrastructure/docker/ when needed.
+# Local database and API. Koha stays outside this stack.
+# The web app still runs on the host and calls the API at http://127.0.0.1:8000.
 
 services:
   postgres:
@@ -11,7 +11,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ stores data in a versioned subdir under this mount (see official image docs).
+      - postgres_data:/var/lib/postgresql
       - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U libraryhub -d libraryhub"]
@@ -23,6 +24,26 @@ services:
     image: redis:7
     ports:
       - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://libraryhub:libraryhub_dev@postgres:5432/libraryhub
+      REDIS_URL: redis://redis:6379/0
+      LIBRARYHUB_BOOTSTRAP_PASSWORD: ${LIBRARYHUB_BOOTSTRAP_PASSWORD:-}
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   postgres_data:
