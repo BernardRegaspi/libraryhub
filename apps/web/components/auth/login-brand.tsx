@@ -24,7 +24,7 @@ export function LoginBrand() {
           University of Saint Anthony
         </div>
         <div className="text-sm font-medium text-primary-foreground/80">
-          libraryhub
+          Library Hub
         </div>
       </div>
     </div>

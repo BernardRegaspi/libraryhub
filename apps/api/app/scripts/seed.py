@@ -18,6 +18,13 @@ _BOOTSTRAP_USERNAME = "m.reyes"
 def seed_bootstrap(db: Session | None) -> None:
     password = os.environ.get("LIBRARYHUB_BOOTSTRAP_PASSWORD", "")
     if not password.strip():
+        import sys
+
+        print(
+            "LIBRARYHUB_BOOTSTRAP_PASSWORD is missing or blank. "
+            "Set it in the repository root .env or pass -e when running docker compose exec.",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     if db is None:

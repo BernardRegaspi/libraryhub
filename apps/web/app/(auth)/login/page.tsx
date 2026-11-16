@@ -20,7 +20,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-full lg:grid-cols-[minmax(0,46%)_1fr]">
+    <div className="grid min-h-svh flex-1 lg:grid-cols-[minmax(0,46%)_1fr]">
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-[linear-gradient(150deg,#571014_0%,#2e080a_60%,#1c0506_100%)] p-8 text-primary-foreground lg:flex lg:p-12">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.07]"

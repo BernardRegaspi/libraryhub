@@ -145,7 +145,7 @@ function StaffSidebarHeader() {
         ) : null}
         <div className="min-w-0 group-data-[collapsible=icon]:hidden">
           <div className="truncate text-sm font-semibold text-sidebar-foreground">
-            libraryhub
+            Library Hub
           </div>
           <div className="truncate text-xs text-sidebar-foreground/75">
             USANT · ULMS
