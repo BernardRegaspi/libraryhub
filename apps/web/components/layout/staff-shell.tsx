@@ -101,7 +101,14 @@ async function mutateWithSessionRecovery<T>(
       throw error;
     }
 
-    await fetchApi<CurrentUser>("/auth/me");
+    try {
+      await fetchApi<CurrentUser>("/auth/me");
+    } catch (meError) {
+      if (meError instanceof ApiError && meError.status === 401) {
+        redirectToLogin(pathname);
+      }
+      throw meError;
+    }
 
     try {
       return await call();
