@@ -32,7 +32,7 @@ Follow the repo git safety protocol: never skip hooks, never update git config, 
 
 Brainstorming models:
 
-- **Claude Fable 5.1** is preferred for `/brainstorm` (intent, approaches, design, spec).
+- **Claude Fable 5.2** is preferred for `/brainstorm` (intent, approaches, design, spec).
 - **Grok 4.7** may brainstorm when Fable is unavailable (out of tokens, not selected, or the user chooses Grok). Do not refuse that brainstorm, and do not send the user to Fable when Fable is out of tokens.
 
 Building models are **Composer 2.5** and **Grok 4.7**:
@@ -61,7 +61,7 @@ During `/brainstorm`:
 
 Do not implement the feature during brainstorming.
 
-If the current model is Claude Fable 5.1, stop after design approval. Tell the user to switch to Composer 2.5 for planning and normal implementation, or Grok 4.7 if the build needs hard reasoning. Do not implement on Fable.
+If the current model is Claude Fable 5.2, stop after design approval. Tell the user to switch to Composer 2.5 for planning and normal implementation, or Grok 4.7 if the build needs hard reasoning. Do not implement on Fable.
 
 If the current model is Grok 4.7 because Fable is unavailable, finish brainstorming on Grok. After approval, recommend Composer 2.5 for routine planning and implementation. Staying on Grok to plan or implement is allowed.
 

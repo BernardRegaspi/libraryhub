@@ -13,7 +13,7 @@ Do not claim that the Cursor model has been changed automatically. If a switch i
 
 | Role | Model |
 |------|--------|
-| Preferred | Claude Fable 5.1 |
+| Preferred | Claude Fable 5.2 |
 | Fallback when Fable is unavailable (out of tokens, not selected, or the user chooses Grok) | Grok 4.7 |
 
 Grok 4.7 may run `/brainstorm` and Superpowers design. Do not refuse brainstorming on Grok. Do not tell the user to switch to Fable when Fable is out of tokens.
