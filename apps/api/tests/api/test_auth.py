@@ -223,3 +223,63 @@ def test_librarian_cannot_select_another_department(auth_client, db):
     assert rejected.status_code == 403
     assert rejected.json()["detail"]["code"] == "department_forbidden"
     assert auth_client.get("/api/v1/auth/me").json()["active_department_id"] == college_id
+
+
+def test_library_administrator_can_clear_active_department(auth_client, db):
+    add_user(
+        db,
+        username="libadmin",
+        email="libadmin@usant.edu.ph",
+        display_name="Lib Admin",
+        password="local-secret",
+        role_name="Library Administrator",
+        department_code=None,
+    )
+    assert auth_client.post(
+        "/api/v1/auth/login",
+        json={"username": "libadmin", "password": "local-secret"},
+    ).status_code == 200
+    college = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    chosen = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(college.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert chosen.status_code == 200
+    cleared = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": None},
+        headers=csrf_headers(auth_client),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["active_department_id"] is None
+
+
+def test_auditor_can_clear_active_department(auth_client, db):
+    add_user(
+        db,
+        username="auditor",
+        email="auditor@usant.edu.ph",
+        display_name="Campus Auditor",
+        password="local-secret",
+        role_name="Auditor",
+        department_code=None,
+    )
+    assert auth_client.post(
+        "/api/v1/auth/login",
+        json={"username": "auditor", "password": "local-secret"},
+    ).status_code == 200
+    college = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    chosen = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(college.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert chosen.status_code == 200
+    cleared = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": None},
+        headers=csrf_headers(auth_client),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["active_department_id"] is None

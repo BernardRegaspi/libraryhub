@@ -342,36 +342,6 @@ def _verify_csrf(
         raise _CSRF_FAILED
 
 
-def _require_live_session(db: Session, raw_token: str | None) -> tuple[AppUser, UserSession]:
-    if not raw_token:
-        raise _UNAUTHENTICATED
-
-    session_row = (
-        db.query(UserSession)
-        .filter_by(token_hash=hash_secret(raw_token))
-        .one_or_none()
-    )
-    if session_row is None:
-        raise _UNAUTHENTICATED
-
-    now = datetime.now(timezone.utc)
-
-    if session_row.revoked_at is not None:
-        raise _UNAUTHENTICATED
-    if session_row.expires_at <= now or session_row.idle_expires_at <= now:
-        session_row.revoked_at = now
-        db.commit()
-        raise _UNAUTHENTICATED
-
-    user = db.query(AppUser).filter_by(id=session_row.user_id).one()
-    if user.status != "active":
-        session_row.revoked_at = now
-        db.commit()
-        raise _UNAUTHENTICATED
-
-    return user, session_row
-
-
 def _validate_active_department_change(
     db: Session,
     assignments: list[AssignmentRow],
@@ -393,14 +363,14 @@ def logout(
     csrf_cookie: str | None,
     ip_address: str | None,
 ) -> None:
-    user, session_row = _require_live_session(db, raw_token)
+    payload, session_row = load_session(db, raw_token)
     _verify_csrf(session_row, csrf_header, csrf_cookie)
 
     now = datetime.now(timezone.utc)
     session_row.revoked_at = now
     db.add(
         AuditLog(
-            user_id=user.id,
+            user_id=payload.user.id,
             action="auth.logout",
             module="auth",
             entity_type="user_session",
@@ -419,9 +389,10 @@ def set_active_department(
     department_id: uuid.UUID | None,
     ip_address: str | None,
 ) -> CurrentUserOut:
-    user, session_row = _require_live_session(db, raw_token)
+    payload, session_row = load_session(db, raw_token)
     _verify_csrf(session_row, csrf_header, csrf_cookie)
 
+    user = db.query(AppUser).filter_by(id=payload.user.id).one()
     assignments = _user_assignments(db, user.id)
     _validate_active_department_change(db, assignments, department_id)
 

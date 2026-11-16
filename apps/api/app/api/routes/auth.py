@@ -115,8 +115,11 @@ def logout_route(
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 
-    response.delete_cookie("libraryhub_session", path="/")
-    response.delete_cookie("libraryhub_csrf", path="/")
+    settings = get_settings()
+    secure = settings.environment != "development"
+    delete_cookie_kwargs = {"path": "/", "samesite": "lax", "secure": secure}
+    response.delete_cookie("libraryhub_session", **delete_cookie_kwargs)
+    response.delete_cookie("libraryhub_csrf", **delete_cookie_kwargs)
 
 
 @router.patch("/auth/session", response_model=CurrentUserOut)
