@@ -317,3 +317,130 @@ def load_session(
 
     payload = build_current_user(db, user, session_row)
     return payload, session_row
+
+
+_CSRF_FAILED = AuthError(
+    403,
+    "csrf_failed",
+    "The sign-in check failed. Refresh the page and try again.",
+)
+_DEPARTMENT_FORBIDDEN = AuthError(
+    403,
+    "department_forbidden",
+    "That department is outside your assignment.",
+)
+
+
+def _verify_csrf(
+    session_row: UserSession,
+    csrf_header: str | None,
+    csrf_cookie: str | None,
+) -> None:
+    if not csrf_header or not csrf_cookie or csrf_header != csrf_cookie:
+        raise _CSRF_FAILED
+    if hash_secret(csrf_header) != session_row.csrf_token_hash:
+        raise _CSRF_FAILED
+
+
+def _require_live_session(db: Session, raw_token: str | None) -> tuple[AppUser, UserSession]:
+    if not raw_token:
+        raise _UNAUTHENTICATED
+
+    session_row = (
+        db.query(UserSession)
+        .filter_by(token_hash=hash_secret(raw_token))
+        .one_or_none()
+    )
+    if session_row is None:
+        raise _UNAUTHENTICATED
+
+    now = datetime.now(timezone.utc)
+
+    if session_row.revoked_at is not None:
+        raise _UNAUTHENTICATED
+    if session_row.expires_at <= now or session_row.idle_expires_at <= now:
+        session_row.revoked_at = now
+        db.commit()
+        raise _UNAUTHENTICATED
+
+    user = db.query(AppUser).filter_by(id=session_row.user_id).one()
+    if user.status != "active":
+        session_row.revoked_at = now
+        db.commit()
+        raise _UNAUTHENTICATED
+
+    return user, session_row
+
+
+def _validate_active_department_change(
+    db: Session,
+    assignments: list[AssignmentRow],
+    department_id: uuid.UUID | None,
+) -> None:
+    if department_id is None:
+        if not _can_select_all_departments(assignments):
+            raise _DEPARTMENT_FORBIDDEN
+        return
+    allowed_ids = {d.id for d in _departments_for_user(db, assignments)}
+    if department_id not in allowed_ids:
+        raise _DEPARTMENT_FORBIDDEN
+
+
+def logout(
+    db: Session,
+    raw_token: str | None,
+    csrf_header: str | None,
+    csrf_cookie: str | None,
+    ip_address: str | None,
+) -> None:
+    user, session_row = _require_live_session(db, raw_token)
+    _verify_csrf(session_row, csrf_header, csrf_cookie)
+
+    now = datetime.now(timezone.utc)
+    session_row.revoked_at = now
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="auth.logout",
+            module="auth",
+            entity_type="user_session",
+            entity_id=str(session_row.id),
+            ip_address=ip_address,
+        )
+    )
+    db.commit()
+
+
+def set_active_department(
+    db: Session,
+    raw_token: str | None,
+    csrf_header: str | None,
+    csrf_cookie: str | None,
+    department_id: uuid.UUID | None,
+    ip_address: str | None,
+) -> CurrentUserOut:
+    user, session_row = _require_live_session(db, raw_token)
+    _verify_csrf(session_row, csrf_header, csrf_cookie)
+
+    assignments = _user_assignments(db, user.id)
+    _validate_active_department_change(db, assignments, department_id)
+
+    session_row.active_department_id = department_id
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="auth.department_change",
+            module="auth",
+            entity_type="user_session",
+            entity_id=str(session_row.id),
+            ip_address=ip_address,
+            details={
+                "active_department_id": str(department_id)
+                if department_id is not None
+                else None
+            },
+        )
+    )
+    db.commit()
+    db.refresh(session_row)
+    return build_current_user(db, user, session_row)

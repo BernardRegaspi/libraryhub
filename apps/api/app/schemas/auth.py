@@ -8,6 +8,10 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1)
 
 
+class SessionPatch(BaseModel):
+    active_department_id: UUID | None
+
+
 class RoleBrief(BaseModel):
     id: UUID
     name: str

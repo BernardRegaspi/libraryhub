@@ -151,3 +151,75 @@ def test_suspended_user_session_is_revoked_on_next_request(auth_client, db):
     denied = auth_client.get("/api/v1/auth/me")
     assert denied.status_code == 401
     assert db.query(UserSession).one().revoked_at is not None
+
+
+def csrf_headers(client):
+    return {"X-CSRF-Token": client.cookies["libraryhub_csrf"]}
+
+
+def test_logout_and_department_change_require_csrf(auth_client, db):
+    add_user(db, username="ada", email="ada@usant.edu.ph", display_name="Ada Cruz",
+             password="local-secret", role_name="Librarian", department_code="COLLEGE")
+    assert auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"}).status_code == 200
+    rejected = auth_client.post("/api/v1/auth/logout")
+    assert rejected.status_code == 403
+    assert rejected.json()["detail"]["code"] == "csrf_failed"
+    college_id = auth_client.get("/api/v1/auth/me").json()["active_department_id"]
+    forbidden = auth_client.patch("/api/v1/auth/session", json={"active_department_id": None}, headers=csrf_headers(auth_client))
+    assert forbidden.status_code == 403
+    assert forbidden.json()["detail"]["code"] == "department_forbidden"
+    assert auth_client.get("/api/v1/auth/me").json()["active_department_id"] == college_id
+    signed_out = auth_client.post("/api/v1/auth/logout", headers=csrf_headers(auth_client))
+    assert signed_out.status_code == 204
+    assert auth_client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_super_administrator_can_select_all_departments(auth_client, db):
+    add_user(db, username="maria", email="maria@usant.edu.ph", display_name="Maria Reyes",
+             password="local-secret", role_name="Super Administrator", department_code=None)
+    assert auth_client.post("/api/v1/auth/login", json={"username": "maria", "password": "local-secret"}).status_code == 200
+    college = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    chosen = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(college.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert chosen.status_code == 200
+    assert chosen.json()["active_department_id"] == str(college.id)
+    cleared = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": None},
+        headers=csrf_headers(auth_client),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["active_department_id"] is None
+    change = db.query(AuditLog).filter_by(action="auth.department_change").all()
+    assert len(change) == 2
+
+
+def test_sixth_login_attempt_is_rate_limited(auth_client, db):
+    add_user(db, username="ada", email="ada@usant.edu.ph", display_name="Ada Cruz",
+             password="local-secret", role_name="Librarian", department_code="COLLEGE")
+    for _ in range(5):
+        failed = auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "wrong"})
+        assert failed.status_code == 401
+    blocked = auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"})
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"]["code"] == "rate_limited"
+    assert db.query(AuditLog).filter_by(action="auth.login.failure").count() == 5
+
+
+def test_librarian_cannot_select_another_department(auth_client, db):
+    add_user(db, username="ada", email="ada@usant.edu.ph", display_name="Ada Cruz",
+             password="local-secret", role_name="Librarian", department_code="COLLEGE")
+    logged = auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"})
+    college_id = logged.json()["active_department_id"]
+    junior = db.query(LibraryDepartment).filter_by(code="JHS").one()
+    rejected = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(junior.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert rejected.status_code == 403
+    assert rejected.json()["detail"]["code"] == "department_forbidden"
+    assert auth_client.get("/api/v1/auth/me").json()["active_department_id"] == college_id
