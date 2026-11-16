@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { StaffShell } from "@/components/layout/staff-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 
+export const instant = false;
+
 export default async function StaffAppLayout({
   children,
 }: {

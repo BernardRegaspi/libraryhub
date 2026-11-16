@@ -21,6 +21,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -387,12 +388,14 @@ export function StaffShell({ me, children }: StaffShellProps) {
                     }
                   />
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="font-medium">{me.user.display_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {roleNames}
-                      </div>
-                    </DropdownMenuLabel>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="font-medium">{me.user.display_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {roleNames}
+                        </div>
+                      </DropdownMenuLabel>
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => void handleSignOut()}>
                       Sign out

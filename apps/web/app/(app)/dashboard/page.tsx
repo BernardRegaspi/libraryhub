@@ -1,3 +1,5 @@
+export const instant = false;
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -57,7 +59,12 @@ function dashboardActions(me: CurrentUser): ReactNode {
 
   if (me.permissions.includes("catalog.view")) {
     actions.push(
-      <Button key="catalog" variant="outline" render={<Link href="/catalog" />}>
+      <Button
+        key="catalog"
+        variant="outline"
+        nativeButton={false}
+        render={<Link href="/catalog" />}
+      >
         Search catalog
       </Button>,
     );
@@ -68,6 +75,7 @@ function dashboardActions(me: CurrentUser): ReactNode {
       <Button
         key="circulation"
         variant="outline"
+        nativeButton={false}
         render={<Link href="/circulation" />}
       >
         Circulation desk

@@ -1,3 +1,5 @@
+export const instant = false;
+
 import Link from "next/link";
 
 import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";

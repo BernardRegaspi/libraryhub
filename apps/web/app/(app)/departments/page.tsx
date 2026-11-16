@@ -1,3 +1,5 @@
+export const instant = false;
+
 import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
 import { gatePage } from "@/lib/auth/session";
 

@@ -5,6 +5,8 @@ import { LoginBrand } from "@/components/auth/login-brand";
 import { LoginForm } from "@/components/auth/login-form";
 import { getCurrentUser } from "@/lib/auth/session";
 
+export const instant = false;
+
 const heroTiles = [
   { value: "5", label: "Departments" },
   { value: "RBAC", label: "Role + dept scope" },
