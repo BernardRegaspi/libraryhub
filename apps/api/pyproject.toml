@@ -16,6 +16,7 @@ dependencies = [
   "pydantic-settings",
   "httpx",
   "psycopg[binary]>=3",
+  "pwdlib[argon2]>=0.2",
 ]
 
 [project.optional-dependencies]
