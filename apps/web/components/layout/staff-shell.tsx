@@ -164,10 +164,13 @@ export function StaffShell({ me, children }: StaffShellProps) {
   const [departmentValue, setDepartmentValue] = useState(() =>
     departmentSelectValue(me),
   );
-
-  useEffect(() => {
+  const [trackedDepartmentId, setTrackedDepartmentId] = useState(
+    me.active_department_id,
+  );
+  if (trackedDepartmentId !== me.active_department_id) {
+    setTrackedDepartmentId(me.active_department_id);
     setDepartmentValue(departmentSelectValue(me));
-  }, [me.active_department_id]);
+  }
 
   const permittedItems = useMemo(
     () => STAFF_NAV.filter((item) => me.permissions.includes(item.permission)),
