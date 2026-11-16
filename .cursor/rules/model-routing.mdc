@@ -1,0 +1,92 @@
+---
+description: Model routing policy for brainstorming vs building, including Fable handoff
+alwaysApply: true
+---
+
+# Model Routing Policy
+
+Use the currently selected Cursor model according to the following policy.
+
+Do not claim that the Cursor model has been changed automatically. If a switch is required, tell the user which model to select before continuing.
+
+## Brainstorming
+
+| Role | Model |
+|------|--------|
+| Preferred | Claude Fable 5.2 |
+| Fallback when Fable is unavailable (out of tokens, not selected, or the user chooses Grok) | Grok 4.7 |
+
+Grok 4.7 may run `/brainstorm` and Superpowers design. Do not refuse brainstorming on Grok. Do not tell the user to switch to Fable when Fable is out of tokens.
+
+During brainstorming on Fable or on Grok:
+
+- Cover intent, constraints, approaches, design, and spec.
+- Do not write implementation code, scaffolds, or production changes until the design is approved.
+
+After design approval:
+
+- On Fable, stop. Tell the user to switch to Composer 2.5 for planning and normal implementation, or to Grok 4.7 when the build needs hard reasoning.
+- On Grok (Fable unavailable), do not send the user back to Fable. Recommend Composer 2.5 for routine planning and coding. The user may stay on Grok to plan or implement.
+
+Never use Fable for building to "finish the thought."
+
+## Building
+
+Composer 2.5 and Grok 4.7 are the building models.
+
+| Work | Model | Why |
+|------|--------|-----|
+| Normal coding (CRUD, UI, tests, docs, following a plan, routine fixes) | Composer 2.5 | Default builder; saves tokens |
+| Hard logic / hard reasoning (root cause, concurrency, security architecture, complex algorithms, failed Composer attempts) | Grok 4.7 | Hard-reasoning builder |
+
+## Default builder: Composer 2.5
+
+Composer 2.5 is the default model for building. Prefer it for:
+
+- Exploring the existing codebase
+- Writing implementation plans
+- Normal feature implementation
+- CRUD/API development
+- UI and frontend implementation
+- Refactoring
+- Writing tests
+- Routine debugging
+- Documentation
+- Code cleanup
+- Dependency/configuration changes
+- Following an existing implementation plan
+- Small and medium-sized architectural decisions
+
+Do not assume that a task requires a more powerful model merely because it is large. Prefer the fastest reasonable model for routine work to save tokens.
+
+## Escalation: Grok 4.7
+
+Recommend switching to Grok 4.7 only when the problem needs substantially deeper reasoning than normal implementation:
+
+- Composer cannot determine the root cause of a difficult bug
+- Composer has attempted reasonable solutions and they have failed
+- Multiple subsystems interact in a way that is hard to reason about
+- Genuinely complex architectural decision
+- Difficult concurrency, distributed-system, state-management, or race-condition problems
+- Complex algorithm or data-structure problem
+- Difficult security architecture problem
+- Consequences of choosing the wrong approach are significant
+- Deep analysis of a large unfamiliar codebase is required
+
+Do **not** escalate to Grok merely because the task has many files, is time-consuming, needs many edits, is a new feature, or needs boilerplate. Large tasks can still be handled by Composer.
+
+When escalating:
+
+1. Stop before making speculative changes.
+2. Explain the problem and what has already been investigated.
+3. Explain why deeper reasoning would be useful.
+4. Tell the user to switch the Cursor model to Grok 4.7.
+5. After analysis or the hard decision, return to Composer 2.5 for normal implementation.
+
+## Superpowers
+
+Model selection does not override Superpowers workflow. Do not skip brainstorming, planning, testing, debugging, or verification because a stronger model is selected.
+
+- Fable, when available: brainstorming only
+- Grok 4.7: brainstorming when Fable is out of tokens; hard reasoning and implementation when the build needs it
+- Composer 2.5: plans and normal coding
