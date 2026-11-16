@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from app.models.identity import (
     AppUser,
     AuditLog,
@@ -111,3 +113,41 @@ def test_login_failures_share_one_message_and_audit_the_reason(auth_client, db):
     for row in db.query(AuditLog).all():
         assert "nope" not in str(row.details)
         assert "local-secret" not in str(row.details)
+
+
+def test_me_requires_a_live_session(auth_client, db):
+    add_user(db, username="ada", email="ada@usant.edu.ph", display_name="Ada Cruz",
+             password="local-secret", role_name="Librarian", department_code="COLLEGE")
+    missing = auth_client.get("/api/v1/auth/me")
+    assert missing.status_code == 401
+    assert missing.json()["detail"]["code"] == "unauthenticated"
+
+    logged = auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"})
+    assert logged.json()["active_department_id"] is not None
+    ok = auth_client.get("/api/v1/auth/me")
+    assert ok.status_code == 200
+    assert ok.json()["user"]["username"] == "ada"
+
+    row = db.query(UserSession).one()
+    row.idle_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.commit()
+    idle = auth_client.get("/api/v1/auth/me")
+    assert idle.status_code == 401
+
+    fresh = auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"})
+    assert fresh.status_code == 200
+    row = db.query(UserSession).filter(UserSession.revoked_at.is_(None)).one()
+    row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.commit()
+    assert auth_client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_suspended_user_session_is_revoked_on_next_request(auth_client, db):
+    user = add_user(db, username="ada", email="ada@usant.edu.ph", display_name="Ada Cruz",
+                    password="local-secret", role_name="Librarian", department_code="COLLEGE")
+    assert auth_client.post("/api/v1/auth/login", json={"username": "ada", "password": "local-secret"}).status_code == 200
+    user.status = "suspended"
+    db.commit()
+    denied = auth_client.get("/api/v1/auth/me")
+    assert denied.status_code == 401
+    assert db.query(UserSession).one().revoked_at is not None

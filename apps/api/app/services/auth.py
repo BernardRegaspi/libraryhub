@@ -275,3 +275,45 @@ def login(
 
     payload = build_current_user(db, user, session)
     return payload, raw_token, raw_csrf
+
+
+_UNAUTHENTICATED = AuthError(401, "unauthenticated", "Sign in required.")
+
+
+def load_session(
+    db: Session, raw_token: str | None
+) -> tuple[CurrentUserOut, UserSession]:
+    if not raw_token:
+        raise _UNAUTHENTICATED
+
+    session_row = (
+        db.query(UserSession)
+        .filter_by(token_hash=hash_secret(raw_token))
+        .one_or_none()
+    )
+    if session_row is None:
+        raise _UNAUTHENTICATED
+
+    now = datetime.now(timezone.utc)
+
+    if session_row.revoked_at is not None:
+        raise _UNAUTHENTICATED
+    if session_row.expires_at <= now or session_row.idle_expires_at <= now:
+        session_row.revoked_at = now
+        db.commit()
+        raise _UNAUTHENTICATED
+
+    user = db.query(AppUser).filter_by(id=session_row.user_id).one()
+    if user.status != "active":
+        session_row.revoked_at = now
+        db.commit()
+        raise _UNAUTHENTICATED
+
+    if session_row.last_seen_at < now - timedelta(minutes=1):
+        session_row.last_seen_at = now
+        session_row.idle_expires_at = now + timedelta(minutes=30)
+        db.commit()
+        db.refresh(session_row)
+
+    payload = build_current_user(db, user, session_row)
+    return payload, session_row
