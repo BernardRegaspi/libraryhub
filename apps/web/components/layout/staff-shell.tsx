@@ -381,11 +381,11 @@ export function StaffShell({ me, children }: StaffShellProps) {
                         variant="outline"
                         size="icon-sm"
                         className="rounded-full font-semibold"
-                      />
+                      >
+                        {me.user.initials}
+                      </Button>
                     }
-                  >
-                    {me.user.initials}
-                  </DropdownMenuTrigger>
+                  />
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel className="font-normal">
                       <div className="font-medium">{me.user.display_name}</div>

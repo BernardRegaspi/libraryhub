@@ -29,5 +29,21 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [...STAFF_NAV.map((item) => item.href), "/login"],
+  matcher: [
+    "/dashboard",
+    "/catalog",
+    "/patrons",
+    "/circulation",
+    "/holds",
+    "/inventory",
+    "/notifications",
+    "/announcements",
+    "/reports",
+    "/departments",
+    "/staff",
+    "/audit",
+    "/integrations",
+    "/student",
+    "/login",
+  ],
 };

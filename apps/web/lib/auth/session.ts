@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
@@ -11,6 +12,7 @@ function apiOrigin(): string {
 }
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  await connection();
   const cookieStore = await cookies();
   const cookieHeader = cookieStore.toString();
 
