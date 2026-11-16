@@ -33,6 +33,19 @@ def client() -> TestClient:
 
 
 @pytest.fixture
+def auth_client(db):
+    from app.database.session import get_db_session
+
+    app = create_app()
+
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db_session] = override_get_db
+    return TestClient(app)
+
+
+@pytest.fixture
 def db():
     settings = get_settings()
     engine = create_engine(
