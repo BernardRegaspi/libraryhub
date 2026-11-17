@@ -304,7 +304,12 @@ def search(
                 _record_recent(db, user_id, params)
             return shell
         biblio_body, _biblio_headers = client.get_json(f"/biblios/{biblio_id}")
-        biblios = [biblio_body] if isinstance(biblio_body, dict) else []
+        if not isinstance(biblio_body, dict):
+            shell = _search_shell(params, page=1, total=0, has_next=False)
+            if record_recent and user_id is not None:
+                _record_recent(db, user_id, params)
+            return shell
+        biblios = [biblio_body]
         total = 1
         has_next = False
         page = 1

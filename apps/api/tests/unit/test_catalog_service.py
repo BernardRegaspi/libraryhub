@@ -73,3 +73,28 @@ def test_title_search_requests_one_page_and_strips_barcode(db):
     assert payload["results"][0]["item_type"] == "Book"
     assert "SHOULD-NOT-LEAK" not in str(payload)
     assert seen.count("/api/v1/biblios") == 1
+
+
+def test_barcode_search_non_dict_biblio_is_empty_page(db):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/items"):
+            return httpx.Response(200, json=[{
+                "biblio_id": 42,
+                "external_id": "BC-001",
+            }])
+        if request.url.path == "/api/v1/biblios/42":
+            return httpx.Response(200, json="unexpected")
+        return httpx.Response(404)
+
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    payload = search(
+        db, client, Settings(), None,
+        SearchParams(q="BC-001", field="barcode"),
+        record_recent=False,
+    )
+    assert payload["total"] == 0
+    assert payload["has_next"] is False
+    assert payload["results"] == []
