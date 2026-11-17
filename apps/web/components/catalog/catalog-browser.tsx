@@ -71,6 +71,104 @@ function parseYearInput(value: string): number | null {
   return Number.isNaN(year) ? null : year;
 }
 
+function searchDraftKey(state: CatalogSearchState): string {
+  return [
+    state.q,
+    state.field,
+    state.yearFrom ?? "",
+    state.yearTo ?? "",
+  ].join("\u0001");
+}
+
+type CatalogSearchFormProps = {
+  initial: Pick<CatalogSearchState, "q" | "field" | "yearFrom" | "yearTo">;
+  fieldOptions: string[];
+  yearFilter: boolean;
+  onSearch: (draft: {
+    q: string;
+    field: string;
+    yearFrom: number | null;
+    yearTo: number | null;
+  }) => void;
+};
+
+function CatalogSearchForm({
+  initial,
+  fieldOptions,
+  yearFilter,
+  onSearch,
+}: CatalogSearchFormProps) {
+  const [draftQ, setDraftQ] = useState(initial.q);
+  const [draftField, setDraftField] = useState(initial.field);
+  const [draftYearFrom, setDraftYearFrom] = useState(
+    initial.yearFrom != null ? String(initial.yearFrom) : "",
+  );
+  const [draftYearTo, setDraftYearTo] = useState(
+    initial.yearTo != null ? String(initial.yearTo) : "",
+  );
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSearch({
+      q: draftQ.trim(),
+      field: draftField,
+      yearFrom: parseYearInput(draftYearFrom),
+      yearTo: parseYearInput(draftYearTo),
+    });
+  }
+
+  return (
+    <form className="flex flex-col gap-4" onSubmit={onSubmit}>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="catalog-q">Search</Label>
+        <Input
+          id="catalog-q"
+          value={draftQ}
+          onChange={(event) => setDraftQ(event.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="catalog-field">Field</Label>
+        <select
+          id="catalog-field"
+          className="h-7 w-full max-w-xs rounded-md border border-input bg-input/20 px-2 text-xs/relaxed"
+          value={draftField}
+          onChange={(event) => setDraftField(event.target.value)}
+        >
+          {fieldOptions.map((field) => (
+            <option key={field} value={field}>
+              {FIELD_LABELS[field] ?? field}
+            </option>
+          ))}
+        </select>
+      </div>
+      {yearFilter ? (
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="catalog-year-from">Year from</Label>
+            <Input
+              id="catalog-year-from"
+              inputMode="numeric"
+              value={draftYearFrom}
+              onChange={(event) => setDraftYearFrom(event.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="catalog-year-to">Year to</Label>
+            <Input
+              id="catalog-year-to"
+              inputMode="numeric"
+              value={draftYearTo}
+              onChange={(event) => setDraftYearTo(event.target.value)}
+            />
+          </div>
+        </div>
+      ) : null}
+      <Button type="submit">Search</Button>
+    </form>
+  );
+}
+
 function SearchRestoreLink({
   row,
   children,
@@ -247,23 +345,8 @@ export function CatalogBrowser() {
   const urlParams = useSearchParams();
   const state = parseCatalogSearch(urlParams);
 
-  const [draftQ, setDraftQ] = useState(state.q);
-  const [draftField, setDraftField] = useState(state.field);
-  const [draftYearFrom, setDraftYearFrom] = useState(
-    state.yearFrom != null ? String(state.yearFrom) : "",
-  );
-  const [draftYearTo, setDraftYearTo] = useState(
-    state.yearTo != null ? String(state.yearTo) : "",
-  );
   const [saveLabel, setSaveLabel] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
-
-  useEffect(() => {
-    setDraftQ(state.q);
-    setDraftField(state.field);
-    setDraftYearFrom(state.yearFrom != null ? String(state.yearFrom) : "");
-    setDraftYearTo(state.yearTo != null ? String(state.yearTo) : "");
-  }, [state.q, state.field, state.yearFrom, state.yearTo]);
 
   function pushState(next: CatalogSearchState) {
     router.push(`/catalog?${serializeCatalogSearch(next)}`);
@@ -306,18 +389,6 @@ export function CatalogBrowser() {
 
   const config = configQuery.data;
   const opacUrl = config?.opac_url;
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    pushState({
-      ...state,
-      q: draftQ.trim(),
-      field: draftField,
-      yearFrom: parseYearInput(draftYearFrom),
-      yearTo: parseYearInput(draftYearTo),
-      page: 1,
-    });
-  }
 
   async function onSaveSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -462,54 +533,24 @@ export function CatalogBrowser() {
 
     <div className="flex flex-col gap-8 px-6 pb-8 lg:flex-row lg:px-8">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <form className="flex flex-col gap-4" onSubmit={onSubmit}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="catalog-q">Search</Label>
-            <Input
-              id="catalog-q"
-              value={draftQ}
-              onChange={(event) => setDraftQ(event.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="catalog-field">Field</Label>
-            <select
-              id="catalog-field"
-              className="h-7 w-full max-w-xs rounded-md border border-input bg-input/20 px-2 text-xs/relaxed"
-              value={draftField}
-              onChange={(event) => setDraftField(event.target.value)}
-            >
-              {(config?.fields ?? [draftField]).map((field) => (
-                <option key={field} value={field}>
-                  {FIELD_LABELS[field] ?? field}
-                </option>
-              ))}
-            </select>
-          </div>
-          {config?.year_filter ? (
-            <div className="flex flex-wrap gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="catalog-year-from">Year from</Label>
-                <Input
-                  id="catalog-year-from"
-                  inputMode="numeric"
-                  value={draftYearFrom}
-                  onChange={(event) => setDraftYearFrom(event.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="catalog-year-to">Year to</Label>
-                <Input
-                  id="catalog-year-to"
-                  inputMode="numeric"
-                  value={draftYearTo}
-                  onChange={(event) => setDraftYearTo(event.target.value)}
-                />
-              </div>
-            </div>
-          ) : null}
-          <Button type="submit">Search</Button>
-        </form>
+        <CatalogSearchForm
+          key={searchDraftKey(state)}
+          initial={{
+            q: state.q,
+            field: state.field,
+            yearFrom: state.yearFrom,
+            yearTo: state.yearTo,
+          }}
+          fieldOptions={config?.fields ?? [state.field]}
+          yearFilter={config?.year_filter ?? false}
+          onSearch={(draft) =>
+            pushState({
+              ...state,
+              ...draft,
+              page: 1,
+            })
+          }
+        />
 
         <div className="flex items-center gap-2">
           <Button
