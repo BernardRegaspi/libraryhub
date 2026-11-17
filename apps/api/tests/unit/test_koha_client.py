@@ -64,6 +64,28 @@ def test_second_401_raises_auth_error_without_body():
     assert calls["biblios"] == 2
 
 
+def test_list_items_bulk_non_list_returns_empty_without_fallback():
+    calls = {"items": 0, "per_biblio": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/items"):
+            calls["items"] += 1
+            return httpx.Response(200, json={"unexpected": "shape"})
+        if "/biblios/" in request.url.path and request.url.path.endswith("/items"):
+            calls["per_biblio"] += 1
+            return httpx.Response(200, json=[])
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    items, checked_at = client.list_items_for_biblios([1, 2])
+    assert items == []
+    assert checked_at
+    assert calls["items"] == 1
+    assert calls["per_biblio"] == 0
+
+
 def test_timeout_is_typed():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth/token"):

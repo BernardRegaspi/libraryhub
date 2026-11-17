@@ -140,21 +140,21 @@ class KohaClient:
             )
             if isinstance(body, list):
                 return [row for row in body if isinstance(row, dict)], checked_at
+            return [], checked_at
         except KohaResponseError:
-            pass
-        items: list[dict] = []
-        any_ok = False
-        for biblio_id in biblio_ids:
-            try:
-                body, _headers = self.get_json(f"/biblios/{biblio_id}/items")
-            except KohaError:
-                continue
-            any_ok = True
-            if isinstance(body, list):
-                items.extend(row for row in body if isinstance(row, dict))
-        if not any_ok:
-            return None, None
-        return items, checked_at
+            items: list[dict] = []
+            any_ok = False
+            for biblio_id in biblio_ids:
+                try:
+                    body, _headers = self.get_json(f"/biblios/{biblio_id}/items")
+                except KohaError:
+                    continue
+                any_ok = True
+                if isinstance(body, list):
+                    items.extend(row for row in body if isinstance(row, dict))
+            if not any_ok:
+                return None, None
+            return items, checked_at
 
     def library_names(self) -> dict[str, str]:
         return self._cached_names(
