@@ -342,6 +342,14 @@ def _verify_csrf(
         raise _CSRF_FAILED
 
 
+def assert_csrf(
+    session_row: UserSession,
+    csrf_header: str | None,
+    csrf_cookie: str | None,
+) -> None:
+    _verify_csrf(session_row, csrf_header, csrf_cookie)
+
+
 def _validate_active_department_change(
     db: Session,
     assignments: list[AssignmentRow],
