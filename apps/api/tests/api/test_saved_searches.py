@@ -1,5 +1,7 @@
 import httpx
+from sqlalchemy.orm import Session
 
+from app.api.routes import catalog as catalog_routes
 from app.models.catalog import SavedSearch
 from app.schemas.catalog import SavedSearchIn, SearchParams
 from app.services.catalog import CatalogError, delete_saved, save_search, search
@@ -25,6 +27,7 @@ def _empty_biblio_handler(request: httpx.Request) -> httpx.Response:
 
 
 def test_saved_search_upsert_cap_and_recent_limit_and_foreign_delete(db):
+    db.autoflush = False
     primary = add_user(
         db,
         username="cat-lib-1",
@@ -95,3 +98,56 @@ def test_saved_search_upsert_cap_and_recent_limit_and_foreign_delete(db):
 
     delete_saved(db, primary.id, saved_id)
     assert db.query(SavedSearch).filter_by(id=saved_id).count() == 0
+
+
+def test_search_route_keeps_recent_after_close(db, monkeypatch):
+    primary = add_user(
+        db,
+        username="cat-lib-persist",
+        email="cat-lib-persist@usant.edu.ph",
+        display_name="Catalog Persist",
+        password="local-secret",
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    from app.integrations.koha.client import KohaClient
+
+    monkeypatch.setattr(
+        catalog_routes,
+        "KohaClient",
+        lambda settings: KohaClient(
+            settings,
+            transport=httpx.MockTransport(_empty_biblio_handler),
+        ),
+    )
+    connection = db.connection()
+    writer = Session(
+        bind=connection,
+        autoflush=False,
+        join_transaction_mode="create_savepoint",
+    )
+    try:
+        catalog_routes.catalog_search(
+            (type("Payload", (), {"user": primary})(), None),
+            SearchParams(q="persist-me", field="title"),
+            writer,
+        )
+    finally:
+        writer.close()
+
+    reader = Session(
+        bind=connection,
+        autoflush=False,
+        join_transaction_mode="create_savepoint",
+    )
+    try:
+        texts = [
+            row.query_text
+            for row in reader.query(SavedSearch).filter_by(
+                user_id=primary.id,
+                kind="recent",
+            )
+        ]
+    finally:
+        reader.close()
+    assert texts == ["persist-me"]

@@ -216,6 +216,47 @@ def test_catalog_search_connect_error(auth_client, db, monkeypatch):
     assert "ConnectError" not in response.text
 
 
+def test_catalog_search_item_timeout_keeps_the_hit(auth_client, db, monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return _oauth_token_response()
+        if request.url.path.endswith("/biblios"):
+            return httpx.Response(
+                200,
+                json=[{"biblio_id": 9, "title": "Ada"}],
+                headers={"X-Total-Count": "1"},
+            )
+        if request.url.path.endswith("/items"):
+            raise httpx.ReadTimeout("slow")
+        if request.url.path.endswith("/libraries"):
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/item_types"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    _patch_koha(monkeypatch, handler)
+    add_user(
+        db,
+        username="stud-items-down",
+        email="stud-items-down@usant.edu.ph",
+        display_name="Student Items Down",
+        password=PASSWORD,
+        role_name="Student",
+        department_code="COLLEGE",
+    )
+    _login(auth_client, "stud-items-down")
+    response = auth_client.get("/api/v1/catalog/search", params={"q": "Ada", "field": "title"})
+    assert response.status_code == 200
+    availability = response.json()["results"][0]["availability"]
+    assert availability["status"] == "unknown"
+    assert availability["label"] == "Availability unavailable"
+    assert availability["last_checked"] is None
+
+    recent = auth_client.get("/api/v1/catalog/recent-searches")
+    assert recent.status_code == 200
+    assert recent.json()[0]["q"] == "Ada"
+
+
 def test_catalog_search_read_timeout(auth_client, db, monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth/token"):

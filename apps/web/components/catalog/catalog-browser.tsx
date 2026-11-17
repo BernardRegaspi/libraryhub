@@ -295,6 +295,15 @@ export function CatalogBrowser() {
     placeholderData: (previous) => previous,
   });
 
+  useEffect(() => {
+    if (!searchQuery.isSuccess || state.q.length === 0) {
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["catalog", "recent-searches"],
+    });
+  }, [queryClient, searchQuery.dataUpdatedAt, searchQuery.isSuccess, state.q]);
+
   const config = configQuery.data;
   const opacUrl = config?.opac_url;
 

@@ -155,6 +155,8 @@ class KohaClient:
             if not any_ok:
                 return None, None
             return items, checked_at
+        except KohaError:
+            return None, None
 
     def library_names(self) -> dict[str, str]:
         return self._cached_names(

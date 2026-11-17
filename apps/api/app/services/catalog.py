@@ -273,6 +273,7 @@ def _record_recent(db: Session, user_id: uuid.UUID, params: SearchParams) -> Non
         if oldest is None:
             break
         db.delete(oldest)
+        db.flush()
     db.flush()
 
 
@@ -598,6 +599,7 @@ def save_search(db: Session, user_id: uuid.UUID, body: SavedSearchIn) -> dict:
         if oldest is None:
             break
         db.delete(oldest)
+        db.flush()
     row = db.query(SavedSearch).filter_by(id=row_id).one()
     db.flush()
     return _row_payload(row)

@@ -86,6 +86,26 @@ def test_list_items_bulk_non_list_returns_empty_without_fallback():
     assert calls["per_biblio"] == 0
 
 
+def test_list_items_timeout_returns_unknown_without_fallback():
+    calls = {"per_biblio": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/items") and "/biblios/" not in request.url.path:
+            raise httpx.ReadTimeout("slow")
+        if request.url.path.endswith("/items"):
+            calls["per_biblio"] += 1
+            return httpx.Response(200, json=[])
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    items, checked_at = client.list_items_for_biblios([9])
+    assert items is None
+    assert checked_at is None
+    assert calls["per_biblio"] == 0
+
+
 def test_timeout_is_typed():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth/token"):

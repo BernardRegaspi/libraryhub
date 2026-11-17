@@ -98,7 +98,7 @@ def catalog_search(
     client = _koha_client()
     settings = get_settings()
     try:
-        return search(
+        payload_out = search(
             db,
             client,
             settings,
@@ -106,6 +106,8 @@ def catalog_search(
             params,
             record_recent=True,
         )
+        db.commit()
+        return payload_out
     except CatalogError as exc:
         _raise_catalog(exc)
     except KohaError as exc:
