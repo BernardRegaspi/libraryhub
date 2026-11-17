@@ -116,7 +116,7 @@ def test_catalog_config_for_student(auth_client, db):
     body = response.json()
     assert body["opac_url"] is None
     assert "keyword" in body["fields"]
-    assert body["year_filter"] is False
+    assert body["year_filter"] is True
     get_settings.cache_clear()
 
 

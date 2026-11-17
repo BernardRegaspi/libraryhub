@@ -1,7 +1,7 @@
 # Catalog search and Koha REST integration
 
 Date: 2026-11-17
-Status: approved in conversation, pending spec review
+Status: approved
 
 ## Purpose
 
