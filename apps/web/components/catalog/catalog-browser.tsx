@@ -199,6 +199,14 @@ function SearchErrorPanel({
       primary = "The catalog took too long to respond. Try again.";
     } else if (error.status === 422) {
       primary = "That search is not valid.";
+    } else if (error.status === 403) {
+      primary = "You do not have access to the catalog.";
+    } else {
+      const detailMessage = error.detail?.message;
+      primary =
+        typeof detailMessage === "string" && detailMessage.length > 0
+          ? detailMessage
+          : error.message;
     }
   }
 
@@ -206,9 +214,7 @@ function SearchErrorPanel({
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
       {primary ? (
         <p className="text-sm text-foreground">{primary}</p>
-      ) : (
-        <p className="text-sm text-foreground">The search failed. Try again.</p>
-      )}
+      ) : null}
       {opacUrl == null ? (
         <p className="text-sm text-muted-foreground">
           The OPAC address is not configured.

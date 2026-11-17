@@ -163,7 +163,14 @@ export function RecordView({ biblioId, searchParams }: RecordViewProps) {
         ) : null}
       </div>
 
-      {items ? (
+      {itemsQuery.isError ? (
+        <div className="flex flex-col gap-4">
+          <h2 className="font-display text-lg font-semibold text-foreground">
+            Copies
+          </h2>
+          <p className="text-sm text-muted-foreground">Availability unavailable</p>
+        </div>
+      ) : items ? (
         <div className="flex flex-col gap-4">
           <h2 className="font-display text-lg font-semibold text-foreground">
             Copies

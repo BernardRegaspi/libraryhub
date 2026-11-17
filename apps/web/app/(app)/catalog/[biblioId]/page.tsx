@@ -32,8 +32,11 @@ export default async function CatalogRecordPage({
   searchParams,
 }: CatalogRecordPageProps) {
   const { biblioId } = await params;
+  if (!/^\d+$/.test(biblioId)) {
+    notFound();
+  }
   const parsedId = Number.parseInt(biblioId, 10);
-  if (!Number.isFinite(parsedId)) {
+  if (parsedId <= 0) {
     notFound();
   }
 
