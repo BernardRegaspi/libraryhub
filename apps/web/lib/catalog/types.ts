@@ -25,6 +25,11 @@ export type CatalogHit = {
   has_cover: boolean;
 };
 
+export type CatalogLibrary = {
+  id: string;
+  name: string;
+};
+
 export type CatalogSearchResponse = {
   query: string;
   page: number;
@@ -33,6 +38,11 @@ export type CatalogSearchResponse = {
   sort: string;
   direction: string;
   has_next: boolean;
+  letter: string | null;
+  author: string | null;
+  publisher: string | null;
+  availability: string | null;
+  library: string | null;
   results: CatalogHit[];
 };
 
