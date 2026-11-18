@@ -12,6 +12,10 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+psycopg://libraryhub:libraryhub_dev@localhost:5432/libraryhub",
 )
+# Catalog HTTP tests mock Koha but still need a base URL for OAuth paths.
+os.environ.setdefault("KOHA_BASE_URL", "http://koha.test")
+os.environ.setdefault("KOHA_CLIENT_ID", "test-client-id")
+os.environ.setdefault("KOHA_CLIENT_SECRET", "test-client-secret")
 
 from app.main import create_app
 
