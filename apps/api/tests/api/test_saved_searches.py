@@ -1,11 +1,11 @@
 import httpx
 from sqlalchemy.orm import Session
+from test_auth import add_user
 
 from app.api.routes import catalog as catalog_routes
 from app.models.catalog import SavedSearch
 from app.schemas.catalog import SavedSearchIn, SearchParams
 from app.services.catalog import CatalogError, delete_saved, save_search, search
-from test_auth import add_user
 
 
 class KohaSettings:

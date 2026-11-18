@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert
@@ -22,6 +22,7 @@ from app.integrations.koha.marc import parse_marc
 from app.integrations.koha.query import build_biblio_query, order_by
 from app.models.catalog import SavedSearch
 from app.schemas.catalog import SavedSearchIn, SearchParams
+
 
 class CatalogError(Exception):
     def __init__(self, status_code: int, code: str, message: str) -> None:
@@ -192,9 +193,7 @@ def _publication_year(row: dict) -> int | str | None:
 def _http_cover(row: dict) -> str | None:
     for key in _COVER_KEYS:
         value = row.get(key)
-        if isinstance(value, str) and (
-            value.startswith("http://") or value.startswith("https://")
-        ):
+        if isinstance(value, str) and value.startswith(("http://", "https://")):
             return value
     return None
 
@@ -316,7 +315,7 @@ def _map_hit(
 
 
 def _record_recent(db: Session, user_id: uuid.UUID, params: SearchParams) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     filters = _filters(params)
     stmt = (
         insert(SavedSearch)
@@ -733,7 +732,7 @@ def save_search(db: Session, user_id: uuid.UUID, body: SavedSearchIn) -> dict:
         year_to=body.year_to,
     )
     validate_search(params)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     filters = _filters(params)
     stmt = (
         insert(SavedSearch)

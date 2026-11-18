@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -127,7 +127,7 @@ class KohaClient:
         return response.content, content_type
 
     def list_items_for_biblios(self, biblio_ids: list[int]) -> tuple[list[dict] | None, str | None]:
-        checked_at = datetime.now(timezone.utc).isoformat()
+        checked_at = datetime.now(UTC).isoformat()
         if not biblio_ids:
             return [], checked_at
         try:

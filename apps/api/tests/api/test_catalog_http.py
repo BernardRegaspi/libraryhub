@@ -1,9 +1,9 @@
 import httpx
 import pytest
+from test_auth import add_user, csrf_headers
 
 from app.core.config import get_settings
 from app.integrations.koha.client import KohaClient
-from test_auth import add_user, csrf_headers
 
 PASSWORD = "local-secret"
 

@@ -92,7 +92,7 @@ def catalog_config(
 def catalog_search(
     user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
     params: Annotated[SearchParams, Query()],
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> dict:
     payload, _session = user
     client = _koha_client()
@@ -181,7 +181,7 @@ def catalog_biblio_cover(
 @router.get("/recent-searches")
 def catalog_recent(
     user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> list[dict]:
     payload, _session = user
     return list_recent(db, payload.user.id)
@@ -190,7 +190,7 @@ def catalog_recent(
 @router.get("/saved-searches")
 def catalog_saved_list(
     user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> list[dict]:
     payload, _session = user
     return list_saved(db, payload.user.id)
@@ -201,7 +201,7 @@ def catalog_saved_create(
     body: SavedSearchIn,
     request: Request,
     user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> dict:
     payload, session_row = user
     try:
@@ -228,7 +228,7 @@ def catalog_saved_delete(
     search_id: uuid.UUID,
     request: Request,
     user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> None:
     payload, session_row = user
     try:

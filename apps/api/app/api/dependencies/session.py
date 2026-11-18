@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -17,7 +19,7 @@ _PERMISSION_DENIED = HTTPException(
 
 def get_catalog_user(
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> tuple[CurrentUserOut, UserSession]:
     raw_token = request.cookies.get("libraryhub_session")
     try:

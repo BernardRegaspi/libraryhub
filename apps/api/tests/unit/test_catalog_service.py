@@ -2,8 +2,8 @@ import httpx
 import pytest
 
 import app.services.catalog as catalog_module
-from app.services.catalog import CatalogError, search, validate_search
 from app.schemas.catalog import SearchParams
+from app.services.catalog import CatalogError, search, validate_search
 
 
 class Settings:

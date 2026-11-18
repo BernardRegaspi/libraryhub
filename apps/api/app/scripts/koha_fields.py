@@ -1,5 +1,3 @@
-import sys
-
 from app.core.config import get_settings
 from app.integrations.koha.client import KohaClient
 from app.integrations.koha.exceptions import KohaError, KohaResponseError
