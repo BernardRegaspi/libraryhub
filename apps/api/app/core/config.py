@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     koha_base_url: str | None = Field(default=None, validation_alias="KOHA_BASE_URL")
     koha_api_username: str | None = Field(default=None, validation_alias="KOHA_API_USERNAME")
     koha_api_password: str | None = Field(default=None, validation_alias="KOHA_API_PASSWORD")
+    koha_client_id: str | None = Field(default=None, validation_alias="KOHA_CLIENT_ID")
+    koha_client_secret: str | None = Field(default=None, validation_alias="KOHA_CLIENT_SECRET")
+    koha_opac_url: str | None = Field(default=None, validation_alias="KOHA_OPAC_URL")
+    koha_api_timeout: float = Field(default=15, validation_alias="KOHA_API_TIMEOUT")
 
 
 @lru_cache

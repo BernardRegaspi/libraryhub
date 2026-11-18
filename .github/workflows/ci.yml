@@ -45,8 +45,13 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://libraryhub:libraryhub_dev@localhost:5432/libraryhub
       - run: ruff check app tests
       - run: pytest
         env:
           DATABASE_URL: postgresql+psycopg://libraryhub:libraryhub_dev@localhost:5432/libraryhub
+          KOHA_BASE_URL: http://koha.test
+          KOHA_CLIENT_ID: test-client-id
+          KOHA_CLIENT_SECRET: test-client-secret
           CI: true

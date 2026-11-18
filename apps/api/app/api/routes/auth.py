@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
@@ -5,14 +7,20 @@ from app.core.config import get_settings
 from app.database.session import get_db_session
 from app.schemas.auth import CurrentUserOut, LoginIn, SessionPatch
 from app.services.auth import (
-    AuthError,
     SESSION_MAX_AGE_SECONDS,
+    AuthError,
     load_session,
-    login as login_service,
-    logout as logout_service,
     set_active_department,
 )
+from app.services.auth import (
+    login as login_service,
+)
+from app.services.auth import (
+    logout as logout_service,
+)
 from app.services.tokens import hash_secret, new_secret
+
+DbSession = Annotated[Session, Depends(get_db_session)]
 
 router = APIRouter(tags=["auth"])
 
@@ -22,7 +30,7 @@ def login_route(
     body: LoginIn,
     request: Request,
     response: Response,
-    db: Session = Depends(get_db_session),
+    db: DbSession,
 ) -> CurrentUserOut:
     ip_address = request.client.host if request.client else None
     try:
@@ -62,7 +70,7 @@ def login_route(
 def me_route(
     request: Request,
     response: Response,
-    db: Session = Depends(get_db_session),
+    db: DbSession,
 ) -> CurrentUserOut:
     raw_token = request.cookies.get("libraryhub_session")
     try:
@@ -98,7 +106,7 @@ def me_route(
 def logout_route(
     request: Request,
     response: Response,
-    db: Session = Depends(get_db_session),
+    db: DbSession,
 ) -> None:
     ip_address = request.client.host if request.client else None
     try:
@@ -126,7 +134,7 @@ def logout_route(
 def session_patch_route(
     body: SessionPatch,
     request: Request,
-    db: Session = Depends(get_db_session),
+    db: DbSession,
 ) -> CurrentUserOut:
     ip_address = request.client.host if request.client else None
     try:

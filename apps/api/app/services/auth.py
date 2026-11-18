@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -53,7 +53,7 @@ def initials(display_name: str) -> str:
 
 
 def _failure_count(db: Session, identifier: str) -> int:
-    since = datetime.now(timezone.utc) - timedelta(minutes=15)
+    since = datetime.now(UTC) - timedelta(minutes=15)
     return (
         db.query(AuditLog)
         .filter(
@@ -246,7 +246,7 @@ def login(
     active_department_id = _initial_active_department_id(db, assignments)
     raw_token = new_secret()
     raw_csrf = new_secret()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     session = UserSession(
         user_id=user.id,
@@ -294,7 +294,7 @@ def load_session(
     if session_row is None:
         raise _UNAUTHENTICATED
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if session_row.revoked_at is not None:
         raise _UNAUTHENTICATED
@@ -342,6 +342,14 @@ def _verify_csrf(
         raise _CSRF_FAILED
 
 
+def assert_csrf(
+    session_row: UserSession,
+    csrf_header: str | None,
+    csrf_cookie: str | None,
+) -> None:
+    _verify_csrf(session_row, csrf_header, csrf_cookie)
+
+
 def _validate_active_department_change(
     db: Session,
     assignments: list[AssignmentRow],
@@ -366,7 +374,7 @@ def logout(
     payload, session_row = load_session(db, raw_token)
     _verify_csrf(session_row, csrf_header, csrf_cookie)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     session_row.revoked_at = now
     db.add(
         AuditLog(

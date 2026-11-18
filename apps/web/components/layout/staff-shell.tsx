@@ -78,11 +78,14 @@ function staffRoleNames(me: CurrentUser): string {
   return names.join(", ");
 }
 
-function redirectToLogin(pathname: string): void {
-  window.location.assign(`/login?next=${encodeURIComponent(pathname)}`);
+type AppRouter = ReturnType<typeof useRouter>;
+
+function redirectToLogin(router: AppRouter, pathname: string): void {
+  void router.push(`/login?next=${encodeURIComponent(pathname)}`);
 }
 
 async function mutateWithSessionRecovery<T>(
+  router: AppRouter,
   pathname: string,
   call: () => Promise<T>,
 ): Promise<T> {
@@ -94,7 +97,7 @@ async function mutateWithSessionRecovery<T>(
     }
 
     if (error.status === 401) {
-      redirectToLogin(pathname);
+      redirectToLogin(router, pathname);
       throw error;
     }
 
@@ -106,7 +109,7 @@ async function mutateWithSessionRecovery<T>(
       await fetchApi<CurrentUser>("/auth/me");
     } catch (meError) {
       if (meError instanceof ApiError && meError.status === 401) {
-        redirectToLogin(pathname);
+        redirectToLogin(router, pathname);
       }
       throw meError;
     }
@@ -119,7 +122,7 @@ async function mutateWithSessionRecovery<T>(
           retryError.status === 401 ||
           retryError.detail?.code === "csrf_failed"
         ) {
-          redirectToLogin(pathname);
+          redirectToLogin(router, pathname);
         }
       }
       throw retryError;
@@ -215,7 +218,7 @@ export function StaffShell({ me, children }: StaffShellProps) {
       const activeDepartmentId = value === "all" ? null : value;
 
       try {
-        await mutateWithSessionRecovery(pathname, () =>
+        await mutateWithSessionRecovery(router, pathname, () =>
           fetchApi<CurrentUser>("/auth/session", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -247,10 +250,10 @@ export function StaffShell({ me, children }: StaffShellProps) {
   const handleSignOut = useCallback(async () => {
     setSignOutError(null);
     try {
-      await mutateWithSessionRecovery(pathname, () =>
+      await mutateWithSessionRecovery(router, pathname, () =>
         fetchApi<void>("/auth/logout", { method: "POST" }),
       );
-      window.location.assign("/login");
+      void router.push("/login");
     } catch (error) {
       if (
         error instanceof ApiError &&
@@ -260,7 +263,7 @@ export function StaffShell({ me, children }: StaffShellProps) {
       }
       setSignOutError("Sign-out did not complete.");
     }
-  }, [pathname]);
+  }, [pathname, router]);
 
   return (
     <TooltipProvider>

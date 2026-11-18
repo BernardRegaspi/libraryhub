@@ -22,7 +22,7 @@ _SCHEMA = "libraryhub"
 
 class LibraryDepartment(Base):
     __tablename__ = "library_departments"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -68,7 +68,7 @@ class AppUser(Base):
 
 class AuthIdentity(Base):
     __tablename__ = "auth_identities"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -92,7 +92,7 @@ class AuthIdentity(Base):
 
 class UserCredential(Base):
     __tablename__ = "user_credentials"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -111,7 +111,7 @@ class UserCredential(Base):
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -138,7 +138,7 @@ class UserSession(Base):
 
 class Role(Base):
     __tablename__ = "roles"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -152,7 +152,7 @@ class Role(Base):
 
 class Permission(Base):
     __tablename__ = "permissions"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -166,7 +166,7 @@ class Permission(Base):
 
 class RolePermission(Base):
     __tablename__ = "role_permissions"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -182,7 +182,7 @@ class RolePermission(Base):
 
 class UserRoleAssignment(Base):
     __tablename__ = "user_role_assignments"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = ({"schema": _SCHEMA},)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
