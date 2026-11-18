@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from app.core.config import get_settings
 from app.models.base import Base
@@ -16,6 +16,12 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
 
+_SCHEMA = "libraryhub"
+
+
+def _ensure_schema(connection) -> None:
+    connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{_SCHEMA}"'))
+
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
@@ -24,7 +30,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table_schema="libraryhub",
+        version_table_schema=_SCHEMA,
         include_schemas=True,
     )
 
@@ -41,10 +47,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        with connection.begin():
+            _ensure_schema(connection)
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            version_table_schema="libraryhub",
+            version_table_schema=_SCHEMA,
             include_schemas=True,
         )
 

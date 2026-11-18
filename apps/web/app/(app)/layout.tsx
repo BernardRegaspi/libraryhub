@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { QueryProvider } from "@/components/catalog/query-provider";
 import { StaffShell } from "@/components/layout/staff-shell";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -34,7 +35,9 @@ export default async function StaffAppLayout({
 
   return (
     <div className="ulms min-h-screen">
-      <StaffShell me={me}>{children}</StaffShell>
+      <QueryProvider>
+        <StaffShell me={me}>{children}</StaffShell>
+      </QueryProvider>
     </div>
   );
 }
