@@ -1,5 +1,7 @@
 import httpx
+import pytest
 
+import app.services.catalog as catalog_module
 from app.services.catalog import CatalogError, search, validate_search
 from app.schemas.catalog import SearchParams
 
@@ -29,6 +31,16 @@ def test_empty_query_is_valid_and_a_bad_letter_is_not():
     assert letter.letter == "M"
     assert letter.author is None
     assert letter.availability is None
+
+
+def test_per_page_one_is_invalid():
+    try:
+        validate_search(SearchParams(q="", per_page=1))
+    except CatalogError as exc:
+        assert exc.status_code == 422
+        assert exc.code == "invalid_search"
+    else:
+        raise AssertionError("expected CatalogError")
 
 
 def test_invalid_control_character_is_rejected():
@@ -236,7 +248,12 @@ def _window_handler(seen_pages: list) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-def test_available_filter_returns_the_whole_five_page_window(db):
+def test_available_filter_returns_the_whole_five_page_window(db, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        catalog_module,
+        "_PER_PAGE_VALUES",
+        catalog_module._PER_PAGE_VALUES | {1},
+    )
     seen_pages = []
     from app.integrations.koha.client import KohaClient
     client = KohaClient(Settings(), transport=_window_handler(seen_pages))
@@ -282,7 +299,12 @@ def test_unknown_library_is_invalid(db):
     assert not biblios_requested
 
 
-def test_second_window_starts_at_koha_page_six(db):
+def test_second_window_starts_at_koha_page_six(db, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        catalog_module,
+        "_PER_PAGE_VALUES",
+        catalog_module._PER_PAGE_VALUES | {1},
+    )
     seen_pages = []
     from app.integrations.koha.client import KohaClient
     client = KohaClient(Settings(), transport=_window_handler(seen_pages))

@@ -38,7 +38,7 @@ _AVAILABILITY_NOTICE = (
     "Availability can change after this time. This is not a reservation."
 )
 _COVER_KEYS = ("cover_url", "cover_image_url", "image_url")
-_PER_PAGE_VALUES = frozenset({1, 10, 20, 40})
+_PER_PAGE_VALUES = frozenset({10, 20, 40})
 _RECENT_CAP = 10
 _SAVED_CAP = 30
 
