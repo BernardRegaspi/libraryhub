@@ -17,6 +17,29 @@ def test_like_escapes_wildcards_and_keyword_is_title_or_author():
     assert order_by("author", "desc") == "-author"
 
 
+def test_empty_browse_has_no_clause_and_letter_is_a_prefix():
+    assert build_biblio_query(
+        "keyword", "", year_from=None, year_to=None, year_field=None
+    ) is None
+    assert build_biblio_query(
+        "keyword", "", year_from=None, year_to=None, year_field=None, letter="M"
+    ) == {"title": {"-like": "M%"}}
+    assert build_biblio_query(
+        "keyword", "Ada", year_from=None, year_to=None, year_field=None,
+        letter="A", author="Lovelace", publisher="Murray",
+    ) == {
+        "-and": [
+            {"-or": [
+                {"title": {"-like": "%Ada%"}},
+                {"author": {"-like": "%Ada%"}},
+            ]},
+            {"title": {"-like": "A%"}},
+            {"author": {"-like": "%Lovelace%"}},
+            {"publisher": {"-like": "%Murray%"}},
+        ]
+    }
+
+
 def test_year_filter_uses_between_and_comparisons():
     assert build_biblio_query(
         "title", "Ada", year_from=1990, year_to=2000, year_field="copyright_date"

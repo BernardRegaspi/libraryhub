@@ -6,6 +6,10 @@ def _like(field: str, text: str) -> dict:
     return {field: {"-like": f"%{escape_like(text)}%"}}
 
 
+def _prefix(field: str, letter: str) -> dict:
+    return {field: {"-like": f"{escape_like(letter)}%"}}
+
+
 def build_biblio_query(
     field: str,
     text: str,
@@ -13,20 +17,34 @@ def build_biblio_query(
     year_from: int | None,
     year_to: int | None,
     year_field: str | None,
-) -> dict:
-    if field == "keyword":
-        clause: dict = {"-or": [_like("title", text), _like("author", text)]}
-    else:
-        clause = _like(field, text)
-    if year_field is None or (year_from is None and year_to is None):
-        return clause
-    if year_from is not None and year_to is not None:
-        year_clause = {year_field: {"-between": [year_from, year_to]}}
-    elif year_from is not None:
-        year_clause = {year_field: {">=": year_from}}
-    else:
-        year_clause = {year_field: {"<=": year_to}}
-    return {"-and": [clause, year_clause]}
+    letter: str | None = None,
+    author: str | None = None,
+    publisher: str | None = None,
+) -> dict | None:
+    clauses: list[dict] = []
+    if text:
+        if field == "keyword":
+            clauses.append({"-or": [_like("title", text), _like("author", text)]})
+        else:
+            clauses.append(_like(field, text))
+    if letter:
+        clauses.append(_prefix("title", letter))
+    if author:
+        clauses.append(_like("author", author))
+    if publisher:
+        clauses.append(_like("publisher", publisher))
+    if year_field is not None and (year_from is not None or year_to is not None):
+        if year_from is not None and year_to is not None:
+            clauses.append({year_field: {"-between": [year_from, year_to]}})
+        elif year_from is not None:
+            clauses.append({year_field: {">=": year_from}})
+        else:
+            clauses.append({year_field: {"<=": year_to}})
+    if not clauses:
+        return None
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"-and": clauses}
 
 
 def order_by(sort: str, direction: str) -> str:
