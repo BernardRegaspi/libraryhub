@@ -25,7 +25,7 @@ Until a live biblio key check changes the allowlist in `apps/api/app/integration
 
 Default sorts are title, author, and publication year (`copyright_date` on this Koha host), ascending title by default. `year_filter` is true with `copyright_date` as the biblio year column. `subject` is omitted as a result-set filter until a subject column appears on biblio JSON.
 
-Library name, item type, availability wording, and subject headings on copies are **copy facts** returned from Koha items or MARC on the detail page. They are not filters that narrow the result set (except publication year once a year column is confirmed on the biblio object).
+Library name, item type, availability wording, and subject headings on copies are **copy facts** returned from Koha items or MARC on the detail page. Availability and library filter the current five-page biblio window by copy facts; author, publisher, and title prefix filter the biblio `q`. Subject remains omitted.
 
 Item barcodes (`external_id` on copies) require the ULMS permission `catalog.barcode.view`. The API strips barcodes for callers without that permission.
 

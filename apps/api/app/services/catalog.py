@@ -38,7 +38,7 @@ _AVAILABILITY_NOTICE = (
     "Availability can change after this time. This is not a reservation."
 )
 _COVER_KEYS = ("cover_url", "cover_image_url", "image_url")
-_PER_PAGE_VALUES = frozenset({10, 20, 40})
+_PER_PAGE_VALUES = frozenset({1, 10, 20, 40})
 _RECENT_CAP = 10
 _SAVED_CAP = 30
 
@@ -239,6 +239,38 @@ def _search_shell(params: SearchParams, *, page: int, total: int | None, has_nex
     }
 
 
+def _uses_copy_filters(params: SearchParams) -> bool:
+    return params.availability is not None or params.library is not None
+
+
+def _passes_copy_filters(
+    hit: dict,
+    grouped: dict[int, list[dict]],
+    params: SearchParams,
+) -> bool:
+    if params.availability == "available":
+        if hit["availability"]["available_count"] <= 0:
+            return False
+    elif params.availability == "on_loan":
+        av = hit["availability"]
+        if not (av["copy_count"] > 0 and av["available_count"] == 0):
+            return False
+    if params.library is not None:
+        biblio_id = hit["biblio_id"]
+        items = grouped.get(biblio_id or -1, [])
+        if not any(item.get("home_library_id") == params.library for item in items):
+            return False
+    return True
+
+
+def _validate_library_filter(client, params: SearchParams) -> None:
+    if params.library is None:
+        return
+    library_names = client.library_names()
+    if library_names and params.library not in library_names:
+        raise _INVALID
+
+
 def _group_items(items: list[dict] | None) -> dict[int, list[dict]]:
     grouped: dict[int, list[dict]] = defaultdict(list)
     if not items:
@@ -370,6 +402,92 @@ def search(
         total = 1
         has_next = False
         page = 1
+        biblio_ids = [bid for row in biblios if (bid := _biblio_id(row)) is not None]
+        items, checked_at = client.list_items_for_biblios(biblio_ids)
+        items_failed = items is None
+        if items is None:
+            items = []
+        grouped = _group_items(items)
+        type_labels = client.item_type_labels()
+        results = [
+            _map_hit(
+                row,
+                items=grouped.get(_biblio_id(row) or -1, []),
+                type_labels=type_labels,
+                checked_at=checked_at,
+                items_failed=items_failed,
+            )
+            for row in biblios
+            if _biblio_id(row) is not None
+        ]
+    elif _uses_copy_filters(params):
+        _validate_library_filter(client, params)
+        query = build_biblio_query(
+            params.field,
+            params.q,
+            year_from=params.year_from,
+            year_to=params.year_to,
+            year_field=YEAR_FIELD,
+            letter=params.letter,
+            author=params.author,
+            publisher=params.publisher,
+        )
+        type_labels = client.item_type_labels()
+        start = (params.page - 1) * 5 + 1
+        results: list[dict] = []
+        total_from_koha: int | None = None
+        last_koha_page = start
+        last_page_biblio_count = 0
+        for offset in range(5):
+            koha_page = start + offset
+            koha_params: dict[str, Any] = {
+                "_page": koha_page,
+                "_per_page": params.per_page,
+                "_order_by": order_by(params.sort, params.direction),
+            }
+            if query is not None:
+                koha_params["q"] = json.dumps(query)
+            body, headers = client.get_json("/biblios", koha_params)
+            biblios = (
+                [row for row in body if isinstance(row, dict)]
+                if isinstance(body, list)
+                else []
+            )
+            if total_from_koha is None:
+                total_from_koha = _parse_total(headers)
+            last_koha_page = koha_page
+            last_page_biblio_count = len(biblios)
+            if not biblios:
+                break
+            biblio_ids = [bid for row in biblios if (bid := _biblio_id(row)) is not None]
+            items, checked_at = client.list_items_for_biblios(biblio_ids)
+            items_failed = items is None
+            if items is None:
+                items = []
+            grouped = _group_items(items)
+            for row in biblios:
+                bid = _biblio_id(row)
+                if bid is None:
+                    continue
+                hit = _map_hit(
+                    row,
+                    items=grouped.get(bid, []),
+                    type_labels=type_labels,
+                    checked_at=checked_at,
+                    items_failed=items_failed,
+                )
+                if _passes_copy_filters(hit, grouped, params):
+                    results.append(hit)
+            if len(biblios) < params.per_page:
+                break
+        total = None
+        has_next = _has_next(
+            total_from_koha,
+            last_koha_page,
+            params.per_page,
+            last_page_biblio_count,
+        )
+        page = params.page
     else:
         query = build_biblio_query(
             params.field,
@@ -394,25 +512,25 @@ def search(
         has_next = _has_next(total, params.page, params.per_page, len(biblios))
         page = params.page
 
-    biblio_ids = [bid for row in biblios if (bid := _biblio_id(row)) is not None]
-    items, checked_at = client.list_items_for_biblios(biblio_ids)
-    items_failed = items is None
-    if items is None:
-        items = []
-    grouped = _group_items(items)
-    type_labels = client.item_type_labels()
+        biblio_ids = [bid for row in biblios if (bid := _biblio_id(row)) is not None]
+        items, checked_at = client.list_items_for_biblios(biblio_ids)
+        items_failed = items is None
+        if items is None:
+            items = []
+        grouped = _group_items(items)
+        type_labels = client.item_type_labels()
 
-    results = [
-        _map_hit(
-            row,
-            items=grouped.get(_biblio_id(row) or -1, []),
-            type_labels=type_labels,
-            checked_at=checked_at,
-            items_failed=items_failed,
-        )
-        for row in biblios
-        if _biblio_id(row) is not None
-    ]
+        results = [
+            _map_hit(
+                row,
+                items=grouped.get(_biblio_id(row) or -1, []),
+                type_labels=type_labels,
+                checked_at=checked_at,
+                items_failed=items_failed,
+            )
+            for row in biblios
+            if _biblio_id(row) is not None
+        ]
     payload = {
         "query": params.q,
         "page": page,

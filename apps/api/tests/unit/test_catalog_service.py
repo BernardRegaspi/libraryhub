@@ -192,3 +192,103 @@ def test_barcode_search_non_dict_biblio_is_empty_page(db):
     assert payload["total"] == 0
     assert payload["has_next"] is False
     assert payload["results"] == []
+
+
+def _copy(biblio_id: int, checked_out: bool) -> dict:
+    return {
+        "biblio_id": biblio_id,
+        "external_id": f"BC-{biblio_id}",
+        "item_type_id": "BK",
+        "home_library_id": "CPL",
+        "holding_library_id": "CPL",
+        "withdrawn": 0,
+        "lost_status": 0,
+        "damaged_status": 0,
+        "not_for_loan_status": 0,
+        "effective_not_for_loan_status": 0,
+        "checked_out_date": "2024-01-01" if checked_out else None,
+    }
+
+
+def _window_handler(seen_pages: list) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/biblios"):
+            page = int(request.url.params["_page"])
+            seen_pages.append(request.url.params["_page"])
+            return httpx.Response(
+                200,
+                json=[{"biblio_id": page, "title": f"Title {page}"}],
+                headers={"X-Total-Count": "6"},
+            )
+        if request.url.path.endswith("/items"):
+            return httpx.Response(
+                200,
+                json=[_copy(i, checked_out=i % 2 == 0) for i in range(1, 7)],
+            )
+        if request.url.path.endswith("/libraries"):
+            return httpx.Response(200, json=[{"library_id": "CPL", "name": "College Library"}])
+        if request.url.path.endswith("/item_types"):
+            return httpx.Response(200, json=[{"item_type_id": "BK", "description": "Book"}])
+        return httpx.Response(404)
+
+    return httpx.MockTransport(handler)
+
+
+def test_available_filter_returns_the_whole_five_page_window(db):
+    seen_pages = []
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=_window_handler(seen_pages))
+    payload = search(
+        db, client, Settings(), None,
+        SearchParams(q="", per_page=1, availability="available"),
+        record_recent=False,
+    )
+    assert [hit["biblio_id"] for hit in payload["results"]] == [1, 3, 5]
+    assert payload["total"] is None
+    assert payload["has_next"] is True
+    assert seen_pages == ["1", "2", "3", "4", "5"]
+
+
+def test_unknown_library_is_invalid(db):
+    biblios_requested = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/biblios"):
+            biblios_requested.append(True)
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/libraries"):
+            return httpx.Response(200, json=[{"library_id": "CPL", "name": "College Library"}])
+        if request.url.path.endswith("/item_types"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    try:
+        search(
+            db, client, Settings(), None,
+            SearchParams(q="", library="NOPE"),
+            record_recent=False,
+        )
+    except CatalogError as exc:
+        assert exc.status_code == 422
+        assert exc.code == "invalid_search"
+    else:
+        raise AssertionError("expected CatalogError")
+    assert not biblios_requested
+
+
+def test_second_window_starts_at_koha_page_six(db):
+    seen_pages = []
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=_window_handler(seen_pages))
+    search(
+        db, client, Settings(), None,
+        SearchParams(q="", per_page=1, availability="available", page=2),
+        record_recent=False,
+    )
+    assert seen_pages[0] == "6"
