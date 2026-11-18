@@ -45,6 +45,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://libraryhub:libraryhub_dev@localhost:5432/libraryhub
       - run: ruff check app tests
       - run: pytest
         env:
