@@ -59,6 +59,11 @@ function savedRowToState(row: SavedSearchRow): CatalogSearchState {
     view: "cover",
     yearFrom: row.year_from,
     yearTo: row.year_to,
+    letter: null,
+    author: "",
+    publisher: "",
+    availability: "",
+    library: "",
   };
 }
 
