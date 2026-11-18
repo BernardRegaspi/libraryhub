@@ -114,6 +114,21 @@ def catalog_search(
         _handle_koha(exc)
 
 
+@router.get("/libraries")
+def catalog_libraries(
+    _user: Annotated[tuple[CurrentUserOut, UserSession], Depends(get_catalog_user)],
+) -> list[dict]:
+    client = _koha_client()
+    try:
+        names = client.library_names()
+    except KohaError as exc:
+        _handle_koha(exc)
+    return [
+        {"id": key, "name": value}
+        for key, value in sorted(names.items(), key=lambda item: item[1])
+    ]
+
+
 @router.get("/biblios/{biblio_id}")
 def catalog_biblio(
     biblio_id: int,

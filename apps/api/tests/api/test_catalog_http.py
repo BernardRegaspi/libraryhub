@@ -120,6 +120,37 @@ def test_catalog_config_for_student(auth_client, db):
     get_settings.cache_clear()
 
 
+def test_catalog_libraries_are_sorted_by_name(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="lib-list",
+        email="lib-list@usant.edu.ph",
+        display_name="Library List",
+        password=PASSWORD,
+        role_name="Student",
+        department_code="COLLEGE",
+    )
+    _login(auth_client, "lib-list")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return _oauth_token_response()
+        if request.url.path.endswith("/libraries"):
+            return httpx.Response(200, json=[
+                {"library_id": "SHS", "name": "Senior High School Library"},
+                {"library_id": "CPL", "name": "College Library"},
+            ])
+        return httpx.Response(404)
+
+    _patch_koha(monkeypatch, handler)
+    response = auth_client.get("/api/v1/catalog/libraries")
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": "CPL", "name": "College Library"},
+        {"id": "SHS", "name": "Senior High School Library"},
+    ]
+
+
 def test_catalog_search_hides_barcode(auth_client, db, monkeypatch):
     _patch_koha(monkeypatch, _standard_catalog_handler)
     add_user(
