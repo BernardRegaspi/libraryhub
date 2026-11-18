@@ -132,12 +132,17 @@ export function CatalogBrowser() {
     queryFn: () => fetchApi<CatalogLibrary[]>("/catalog/libraries"),
   });
 
-  const searchKey = serializeCatalogSearch(state);
+  const librariesFailed = librariesQuery.isError;
+  const searchState: CatalogSearchState = librariesFailed
+    ? { ...state, library: "" }
+    : state;
+
+  const searchKey = serializeCatalogSearch(searchState);
   const searchQuery = useQuery({
     queryKey: ["catalog", "search", searchKey],
     queryFn: () =>
       fetchApi<CatalogSearchResponse>(
-        `/catalog/search?${buildApiSearchQuery(state)}`,
+        `/catalog/search?${buildApiSearchQuery(searchState)}`,
       ),
     placeholderData: (previous) => previous,
   });
@@ -178,7 +183,7 @@ export function CatalogBrowser() {
           fieldOptions={config?.fields ?? [state.field]}
           yearFilter={config?.year_filter ?? false}
           libraries={librariesQuery.data ?? []}
-          librariesFailed={librariesQuery.isError}
+          librariesFailed={librariesFailed}
           total={total ?? null}
           onSearch={pushState}
         />
