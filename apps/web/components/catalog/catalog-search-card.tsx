@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SearchIcon } from "@hugeicons/core-free-icons";
 
@@ -77,7 +77,21 @@ export type CatalogSearchCardProps = {
   onSearch: (next: CatalogSearchState) => void;
 };
 
-export function CatalogSearchCard({
+function committedTextKey(state: CatalogSearchState): string {
+  return [
+    state.q,
+    state.author,
+    state.publisher,
+    state.yearFrom ?? "",
+    state.yearTo ?? "",
+  ].join("\u001f");
+}
+
+export function CatalogSearchCard(props: CatalogSearchCardProps) {
+  return <CatalogSearchCardInner key={committedTextKey(props.state)} {...props} />;
+}
+
+function CatalogSearchCardInner({
   state,
   fieldOptions,
   yearFilter,
@@ -96,14 +110,6 @@ export function CatalogSearchCard({
   const [draftYearTo, setDraftYearTo] = useState(
     state.yearTo != null ? String(state.yearTo) : "",
   );
-
-  useEffect(() => {
-    setDraftQ(state.q);
-    setDraftAuthor(state.author);
-    setDraftPublisher(state.publisher);
-    setDraftYearFrom(state.yearFrom != null ? String(state.yearFrom) : "");
-    setDraftYearTo(state.yearTo != null ? String(state.yearTo) : "");
-  }, [state.q, state.author, state.publisher, state.yearFrom, state.yearTo]);
 
   function commitTextFields() {
     onSearch({
