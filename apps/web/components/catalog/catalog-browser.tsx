@@ -231,7 +231,7 @@ export function CatalogBrowser() {
         ) : (
           <CatalogResults
             hits={hits}
-            pending={searchQuery.isPending}
+            pending={searchQuery.isPending || searchQuery.isPlaceholderData}
             view={state.view}
             sort={state.sort}
             state={state}
