@@ -65,17 +65,68 @@ def config_payload(settings) -> dict:
     }
 
 
+def _optional_text(value: str | None, *, max_len: int) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if not (1 <= len(stripped) <= max_len):
+        raise _INVALID
+    for ch in stripped:
+        if ord(ch) < 32 or ord(ch) == 127:
+            raise _INVALID
+    return stripped
+
+
+def _normalize_letter(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if len(stripped) != 1 or not stripped.isalpha() or not stripped.isascii():
+        raise _INVALID
+    letter = stripped.upper()
+    if not ("A" <= letter <= "Z"):
+        raise _INVALID
+    return letter
+
+
+def _normalize_availability(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped or stripped == "any":
+        return None
+    if stripped in ("available", "on_loan"):
+        return stripped
+    raise _INVALID
+
+
 def validate_search(params: SearchParams) -> None:
     q = params.q.strip()
     params.q = q
 
-    if not (1 <= len(q) <= 200):
+    if q and not (1 <= len(q) <= 200):
         raise _INVALID
-    if params.field == "barcode" and len(q) > 32:
+    if params.field == "barcode" and q and len(q) > 32:
         raise _INVALID
     for ch in q:
         if ord(ch) < 32 or ord(ch) == 127:
             raise _INVALID
+    params.letter = _normalize_letter(params.letter)
+    params.author = _optional_text(params.author, max_len=200)
+    params.publisher = _optional_text(params.publisher, max_len=200)
+    params.availability = _normalize_availability(params.availability)
+    if params.library is not None:
+        lib = params.library.strip()
+        if not lib:
+            params.library = None
+        elif len(lib) > 64:
+            raise _INVALID
+        else:
+            params.library = lib
     if params.field not in DEFAULT_FIELDS:
         raise _INVALID
     if params.page < 1:
@@ -179,6 +230,11 @@ def _search_shell(params: SearchParams, *, page: int, total: int | None, has_nex
         "sort": params.sort,
         "direction": params.direction,
         "has_next": has_next,
+        "letter": params.letter,
+        "author": params.author,
+        "publisher": params.publisher,
+        "availability": params.availability,
+        "library": params.library,
         "results": [],
     }
 

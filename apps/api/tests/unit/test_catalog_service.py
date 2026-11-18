@@ -12,6 +12,25 @@ class Settings:
     koha_opac_url = None
 
 
+def test_empty_query_is_valid_and_a_bad_letter_is_not():
+    params = SearchParams(q="  ")
+    validate_search(params)
+    assert params.q == ""
+    bad = SearchParams(q="", letter="99")
+    try:
+        validate_search(bad)
+    except CatalogError as exc:
+        assert exc.status_code == 422
+        assert exc.message == "That search is not valid."
+    else:
+        raise AssertionError("expected CatalogError")
+    letter = SearchParams(q="", letter="m", author="  ", availability="any")
+    validate_search(letter)
+    assert letter.letter == "M"
+    assert letter.author is None
+    assert letter.availability is None
+
+
 def test_invalid_control_character_is_rejected():
     try:
         validate_search(SearchParams(q="bad\x00"))
