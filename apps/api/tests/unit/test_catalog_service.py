@@ -94,6 +94,81 @@ def test_title_search_requests_one_page_and_strips_barcode(db):
     assert seen.count("/api/v1/biblios") == 1
 
 
+def test_empty_browse_omits_q_and_does_not_record_recent(db):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/biblios"):
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(200, json=[{"biblio_id": 1, "title": "Ada"}], headers={"X-Total-Count": "1"})
+        if request.url.path.endswith("/items"):
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/libraries") or request.url.path.endswith("/item_types"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    user_id = __import__("uuid").uuid4()
+    payload = search(db, client, Settings(), user_id, SearchParams(q=""), record_recent=True)
+    assert "q" not in seen["params"]
+    assert payload["query"] == ""
+    assert payload["letter"] is None
+    SavedSearch = __import__("app.models.catalog", fromlist=["SavedSearch"]).SavedSearch
+    assert db.query(SavedSearch).filter_by(user_id=user_id).count() == 0
+
+
+def test_letter_and_keyword_are_both_in_the_koha_query(db):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/biblios"):
+            seen["q"] = request.url.params["q"]
+            return httpx.Response(200, json=[], headers={"X-Total-Count": "0"})
+        if request.url.path.endswith("/items"):
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/libraries") or request.url.path.endswith("/item_types"):
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    search(
+        db, client, Settings(), None,
+        SearchParams(q="Ada", field="keyword", letter="M"),
+        record_recent=False,
+    )
+    assert "M%" in seen["q"]
+    assert "%Ada%" in seen["q"]
+
+
+def test_barcode_search_ignores_letter_and_library(db):
+    paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600})
+        if request.url.path.endswith("/items"):
+            assert request.url.params["external_id"] == "BC-1"
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    from app.integrations.koha.client import KohaClient
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    payload = search(
+        db, client, Settings(), None,
+        SearchParams(q="BC-1", field="barcode", letter="Z", library="CPL"),
+        record_recent=False,
+    )
+    assert payload["results"] == []
+    assert not any(path.endswith("/biblios") for path in paths)
+
+
 def test_barcode_search_non_dict_biblio_is_empty_page(db):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth/token"):

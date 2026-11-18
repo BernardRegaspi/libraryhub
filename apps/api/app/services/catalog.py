@@ -351,19 +351,19 @@ def search(
         rows = body if isinstance(body, list) else []
         if not rows:
             shell = _search_shell(params, page=1, total=0, has_next=False)
-            if record_recent and user_id is not None:
+            if record_recent and user_id is not None and params.q:
                 _record_recent(db, user_id, params)
             return shell
         biblio_id = _biblio_id(rows[0])
         if biblio_id is None:
             shell = _search_shell(params, page=1, total=0, has_next=False)
-            if record_recent and user_id is not None:
+            if record_recent and user_id is not None and params.q:
                 _record_recent(db, user_id, params)
             return shell
         biblio_body, _biblio_headers = client.get_json(f"/biblios/{biblio_id}")
         if not isinstance(biblio_body, dict):
             shell = _search_shell(params, page=1, total=0, has_next=False)
-            if record_recent and user_id is not None:
+            if record_recent and user_id is not None and params.q:
                 _record_recent(db, user_id, params)
             return shell
         biblios = [biblio_body]
@@ -377,16 +377,18 @@ def search(
             year_from=params.year_from,
             year_to=params.year_to,
             year_field=YEAR_FIELD,
+            letter=params.letter,
+            author=params.author,
+            publisher=params.publisher,
         )
-        body, headers = client.get_json(
-            "/biblios",
-            {
-                "_page": params.page,
-                "_per_page": params.per_page,
-                "_order_by": order_by(params.sort, params.direction),
-                "q": json.dumps(query),
-            },
-        )
+        koha_params: dict[str, Any] = {
+            "_page": params.page,
+            "_per_page": params.per_page,
+            "_order_by": order_by(params.sort, params.direction),
+        }
+        if query is not None:
+            koha_params["q"] = json.dumps(query)
+        body, headers = client.get_json("/biblios", koha_params)
         biblios = [row for row in body if isinstance(row, dict)] if isinstance(body, list) else []
         total = _parse_total(headers)
         has_next = _has_next(total, params.page, params.per_page, len(biblios))
@@ -419,9 +421,14 @@ def search(
         "sort": params.sort,
         "direction": params.direction,
         "has_next": has_next,
+        "letter": params.letter,
+        "author": params.author,
+        "publisher": params.publisher,
+        "availability": params.availability,
+        "library": params.library,
         "results": results,
     }
-    if record_recent and user_id is not None:
+    if record_recent and user_id is not None and params.q:
         _record_recent(db, user_id, params)
     return payload
 
