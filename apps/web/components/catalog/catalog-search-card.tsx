@@ -41,8 +41,25 @@ function parseYearInput(value: string): number | null {
   return Number.isNaN(year) ? null : year;
 }
 
+const SORT_LABELS: Record<string, string> = {
+  "title:asc": "Title A–Z",
+  "title:desc": "Title Z–A",
+  "author:asc": "Author A–Z",
+  "author:desc": "Author Z–A",
+};
+
 function sortValue(sort: string, direction: string): string {
   return `${sort}:${direction}`;
+}
+
+function availabilityLabel(value: string | null): string {
+  if (value === "available") {
+    return "Available now";
+  }
+  if (value === "on_loan") {
+    return "All copies on loan";
+  }
+  return "Any availability";
 }
 
 function parseSortValue(value: string): { sort: string; direction: "asc" | "desc" } {
@@ -138,7 +155,9 @@ export function CatalogSearchCard({
             }}
           >
             <SelectTrigger className="h-9 min-w-36 text-sm">
-              <SelectValue />
+              <SelectValue>
+                {(value: string | null) => fieldOptionLabel(value ?? state.field)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               {fieldOptions.map((field) => (
@@ -163,7 +182,9 @@ export function CatalogSearchCard({
             }}
           >
             <SelectTrigger className="h-9 min-w-36 text-sm">
-              <SelectValue />
+              <SelectValue>
+                {(value: string | null) => availabilityLabel(value)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="">Any availability</SelectItem>
@@ -183,7 +204,13 @@ export function CatalogSearchCard({
             }}
           >
             <SelectTrigger className="h-9 min-w-36 text-sm">
-              <SelectValue placeholder="Any library" />
+              <SelectValue placeholder="Any library">
+                {(value: string | null) =>
+                  value
+                    ? (libraries.find((lib) => lib.id === value)?.name ?? value)
+                    : "Any library"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="">Any library</SelectItem>
@@ -206,7 +233,11 @@ export function CatalogSearchCard({
             }}
           >
             <SelectTrigger className="h-9 min-w-36 text-sm">
-              <SelectValue />
+              <SelectValue>
+                {(value: string | null) =>
+                  (value && SORT_LABELS[value]) || "Title A–Z"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="title:asc">Title A–Z</SelectItem>
