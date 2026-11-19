@@ -324,8 +324,8 @@ export function StaffShell({ me, children }: StaffShellProps) {
           <SidebarRail />
         </Sidebar>
         <SidebarInset>
-          <header className="sticky top-0 z-20 flex flex-col gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 lg:px-6">
-            <div className="flex flex-wrap items-center gap-2 lg:gap-3">
+          <header className="sticky top-0 z-20 flex min-w-0 flex-col gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 lg:px-6">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:gap-3">
               <SidebarTrigger
                 className="lg:hidden"
                 aria-label="Open menu"

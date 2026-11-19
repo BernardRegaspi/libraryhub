@@ -177,7 +177,7 @@ export function CatalogBrowser() {
         }
       />
 
-      <div className="flex flex-col gap-6 px-6 pb-8 lg:px-8">
+      <div className="flex w-full min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6 lg:px-8">
         <CatalogSearchCard
           state={state}
           fieldOptions={config?.fields ?? [state.field]}

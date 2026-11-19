@@ -1,6 +1,6 @@
 "use client";
 
-import { pageItems } from "@/lib/catalog/page-items";
+import { pageItems, type PageItem } from "@/lib/catalog/page-items";
 import {
   Pagination,
   PaginationContent,
@@ -10,6 +10,20 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+function openEndedItems(page: number, hasNext: boolean): PageItem[] {
+  const items: PageItem[] = [];
+  if (page > 2) {
+    items.push(1, "ellipsis");
+  } else if (page === 2) {
+    items.push(1);
+  }
+  items.push(page);
+  if (hasNext) {
+    items.push(page + 1, "ellipsis");
+  }
+  return items;
+}
 
 export type CatalogPaginationProps = {
   page: number;
@@ -36,7 +50,8 @@ export function CatalogPagination({
   const prevDisabled = page <= 1;
   const nextDisabled = count !== null ? page >= count : !hasNext;
 
-  const items = count !== null ? pageItems(page, count) : [];
+  const items: PageItem[] =
+    count !== null ? pageItems(page, count) : openEndedItems(page, hasNext);
 
   return (
     <Pagination>
@@ -53,8 +68,7 @@ export function CatalogPagination({
             }}
           />
         </PaginationItem>
-        {count !== null
-          ? items.map((item, index) => (
+        {items.map((item, index) => (
               <PaginationItem
                 key={item === "ellipsis" ? `ellipsis-${index}` : item}
               >
@@ -64,17 +78,19 @@ export function CatalogPagination({
                   <PaginationLink
                     href="#"
                     isActive={item === page}
+                    className="w-auto min-w-7 px-2 text-xs"
                     onClick={(event) => {
                       event.preventDefault();
-                      onPage(item);
+                      if (item !== page) {
+                        onPage(item);
+                      }
                     }}
                   >
                     {item}
                   </PaginationLink>
                 )}
               </PaginationItem>
-            ))
-          : null}
+            ))}
         <PaginationItem>
           <PaginationNext
             href="#"
