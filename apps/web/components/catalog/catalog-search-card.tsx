@@ -133,8 +133,8 @@ function CatalogSearchCardInner({
   const libraryValue = librariesFailed ? "" : state.library;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <div className="min-w-0 rounded-lg border border-border bg-card p-4">
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
         <div className="relative min-w-0 flex-1">
           <HugeiconsIcon
             icon={SearchIcon}
@@ -150,7 +150,7 @@ function CatalogSearchCardInner({
             className="h-9 pl-9 text-sm"
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Select
             value={state.field}
             onValueChange={(field) => {
@@ -160,7 +160,7 @@ function CatalogSearchCardInner({
               onSearch({ ...state, field, page: 1 });
             }}
           >
-            <SelectTrigger className="h-9 min-w-36 text-sm">
+            <SelectTrigger className="h-9 w-full min-w-0 text-sm sm:w-auto sm:min-w-36">
               <SelectValue>
                 {(value: string | null) => fieldOptionLabel(value ?? state.field)}
               </SelectValue>
@@ -187,7 +187,7 @@ function CatalogSearchCardInner({
               });
             }}
           >
-            <SelectTrigger className="h-9 min-w-36 text-sm">
+            <SelectTrigger className="h-9 w-full min-w-0 text-sm sm:w-auto sm:min-w-36">
               <SelectValue>
                 {(value: string | null) => availabilityLabel(value)}
               </SelectValue>
@@ -209,7 +209,7 @@ function CatalogSearchCardInner({
               onSearch({ ...state, library, page: 1 });
             }}
           >
-            <SelectTrigger className="h-9 min-w-36 text-sm">
+            <SelectTrigger className="h-9 w-full min-w-0 text-sm sm:w-auto sm:min-w-36">
               <SelectValue placeholder="Any library">
                 {(value: string | null) =>
                   value
@@ -238,7 +238,7 @@ function CatalogSearchCardInner({
               onSearch({ ...state, sort, direction, page: 1 });
             }}
           >
-            <SelectTrigger className="h-9 min-w-36 text-sm">
+            <SelectTrigger className="h-9 w-full min-w-0 text-sm sm:w-auto sm:min-w-36">
               <SelectValue>
                 {(value: string | null) =>
                   (value && SORT_LABELS[value]) || "Title A–Z"

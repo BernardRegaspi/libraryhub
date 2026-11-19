@@ -18,7 +18,7 @@ export function ModuleFrame({
   hideModuleSentence = false,
 }: ModuleFrameProps) {
   return (
-    <div className="flex flex-col gap-4 px-6 py-8 lg:px-8">
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
       <p className="text-xs font-medium uppercase tracking-wider text-primary">
         {eyebrow}
       </p>

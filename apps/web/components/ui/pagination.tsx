@@ -24,7 +24,7 @@ function PaginationContent({
   return (
     <ul
       data-slot="pagination-content"
-      className={cn("flex items-center gap-0.5", className)}
+      className={cn("flex flex-wrap items-center justify-center gap-0.5", className)}
       {...props}
     />
   )
@@ -44,6 +44,7 @@ function PaginationLink({
   isActive,
   size = "icon",
   disabled,
+  children,
   ...props
 }: PaginationLinkProps) {
   return (
@@ -51,7 +52,7 @@ function PaginationLink({
       variant={isActive ? "default" : "ghost"}
       size={size}
       disabled={disabled}
-      className={cn(className)}
+      className={cn("min-w-7", className)}
       nativeButton={false}
       render={
         <a
@@ -61,7 +62,9 @@ function PaginationLink({
           {...props}
         />
       }
-    />
+    >
+      {children}
+    </Button>
   )
 }
 

@@ -36,7 +36,7 @@ export function CatalogPagination({
   const prevDisabled = page <= 1;
   const nextDisabled = count !== null ? page >= count : !hasNext;
 
-  const items = count !== null ? pageItems(page, count) : [];
+  const items = count !== null ? pageItems(page, count) : [page];
 
   return (
     <Pagination>
@@ -64,9 +64,12 @@ export function CatalogPagination({
                   <PaginationLink
                     href="#"
                     isActive={item === page}
+                    className="w-auto min-w-7 px-2 text-xs"
                     onClick={(event) => {
                       event.preventDefault();
-                      onPage(item);
+                      if (item !== page) {
+                        onPage(item);
+                      }
                     }}
                   >
                     {item}
