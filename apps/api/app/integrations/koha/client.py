@@ -94,10 +94,11 @@ class KohaClient:
                 params=params,
                 headers={"Authorization": f"Bearer {token}", "Accept": accept},
             )
-        if response.status_code == 401 and _retry:
-            self._token = None
-            return self.get_json(path, params, accept, _retry=False)
-        return self._interpret(response)
+            if response.status_code == 401 and _retry:
+                self._token = None
+            else:
+                return self._interpret(response)
+        return self.get_json(path, params, accept, _retry=False)
 
     def get_bytes(self, url: str) -> tuple[bytes, str]:
         with self._http() as client:

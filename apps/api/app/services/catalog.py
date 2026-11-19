@@ -205,12 +205,13 @@ def _has_cover(biblio: dict, items: list[dict]) -> bool:
 
 
 def _parse_total(headers) -> int | None:
-    raw = headers.get("X-Total-Count")
-    if raw is None:
-        return None
-    text = str(raw).strip()
-    if text.isdigit():
-        return int(text)
+    for key in ("X-Total-Count", "X-Base-Total-Count"):
+        raw = headers.get(key)
+        if raw is None:
+            continue
+        digits = "".join(ch for ch in str(raw) if ch.isdigit())
+        if digits:
+            return int(digits)
     return None
 
 
