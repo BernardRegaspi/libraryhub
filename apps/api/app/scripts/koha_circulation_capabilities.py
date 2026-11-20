@@ -29,7 +29,7 @@ def main() -> None:
         lowered = path.lower()
         if not any(tag in lowered for tag in _TAGS):
             continue
-        for method, detail in operations.items():
+        for method in operations:
             if method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
                 continue
             print(f"{method.upper()} {path}")
