@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -236,6 +236,7 @@ export function PatronFormDialog({
   const [topMessage, setTopMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [duplicateConflict, setDuplicateConflict] = useState(false);
+  const wasOpenRef = useRef(false);
 
   const optionsQuery = useQuery({
     queryKey: ["patrons", "options"],
@@ -252,6 +253,9 @@ export function PatronFormDialog({
     libraries === null;
 
   useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
     if (!open) {
       setConfirming(false);
       setSubmitting(false);
@@ -260,12 +264,15 @@ export function PatronFormDialog({
       setDuplicateConflict(false);
       return;
     }
-    setFields(formFromPatron(initial));
-    setConfirming(false);
-    setTopMessage(null);
-    setFieldErrors({});
-    setDuplicateConflict(false);
-  }, [open, initial, mode]);
+
+    if (!wasOpen) {
+      setFields(formFromPatron(initial));
+      setConfirming(false);
+      setTopMessage(null);
+      setFieldErrors({});
+      setDuplicateConflict(false);
+    }
+  }, [open, initial]);
 
   function setField<K extends keyof FormFields>(key: K, value: FormFields[K]) {
     setFields((prev) => ({ ...prev, [key]: value }));
