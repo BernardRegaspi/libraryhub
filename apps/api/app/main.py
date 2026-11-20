@@ -4,7 +4,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth_router, catalog_router, health_router
+from app.api.routes import auth_router, catalog_router, health_router, patrons_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix=settings.api_v1_prefix)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(catalog_router, prefix=settings.api_v1_prefix)
+    app.include_router(patrons_router, prefix=settings.api_v1_prefix)
     return app
 
 
