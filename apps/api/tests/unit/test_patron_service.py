@@ -75,6 +75,7 @@ def test_overdue_uses_manila_calendar_date_and_barcode_is_optional():
     assert is_overdue("2026-11-19", None, date(2026, 11, 20)) is True
     assert is_overdue("2026-11-20", None, date(2026, 11, 20)) is False
     assert is_overdue("2026-11-19", "2026-11-19", date(2026, 11, 20)) is False
+    assert is_overdue("not-a-date", None, date(2026, 11, 20)) is False
     hidden = checkout_item(
         {"checkout_id": 1, "item_id": 9, "due_date": "2026-11-19", "external_id": "SECRET", "item": {"biblio": {"title": "Ada"}}},
         include_barcode=False,
@@ -202,10 +203,13 @@ def test_patron_holds_keeps_holds_when_library_names_fail():
 def test_detail_audits_without_field_values(db):
     from app.models.identity import AuditLog
 
+    detail_q = db.query(AuditLog).filter_by(action="patrons.detail", entity_id="4")
+    before = detail_q.count()
     payload = get_patron_detail(db, FakePatronClient(), 4, user_id=None, sensitive=False)
     assert "staff_notes" not in payload
-    row = db.query(AuditLog).filter_by(action="patrons.detail").one()
-    assert row.entity_id == "4"
+    assert detail_q.count() == before + 1
+    row = detail_q.order_by(AuditLog.created_at.desc()).first()
+    assert row is not None
     assert row.details == {"sensitive": False}
     assert "ada@usant.edu.ph" not in str(row.details)
 
@@ -238,13 +242,17 @@ class WriteClient:
 def test_create_sends_required_fields_and_audits_names(db):
     from app.models.identity import AuditLog
 
+    create_q = db.query(AuditLog).filter_by(action="patrons.create", entity_id="8")
+    before = create_q.count()
     client = WriteClient()
     payload = PatronWrite(surname="Cruz", library_id="CPL", category_id="ST", email="ada@usant.edu.ph")
     created = create_patron_record(db, client, payload, user_id=None, sensitive=False)
     assert client.created == {"surname": "Cruz", "library_id": "CPL", "category_id": "ST", "email": "ada@usant.edu.ph"}
     assert client.confirm is False
     assert created["patron_id"] == 8
-    audit = db.query(AuditLog).filter_by(action="patrons.create").one()
+    assert create_q.count() == before + 1
+    audit = create_q.order_by(AuditLog.created_at.desc()).first()
+    assert audit is not None
     assert audit.details["fields"] == ["surname", "library_id", "category_id", "email"]
     assert "ada@usant.edu.ph" not in str(audit.details)
 
@@ -265,6 +273,8 @@ def test_sensitive_write_without_permission_does_not_call_koha(db):
 def test_update_overlays_and_a_duplicate_does_not_confirm(db):
     from app.models.identity import AuditLog
 
+    update_before = db.query(AuditLog).filter_by(action="patrons.update").count()
+
     class Duplicate(WriteClient):
         def update_patron(self, patron_id, body):
             self.updated = body
@@ -281,4 +291,4 @@ def test_update_overlays_and_a_duplicate_does_not_confirm(db):
     assert client.updated["surname"] == "Cruz"
     assert client.updated["cardnumber"] == "999"
     assert "confirm_duplicate" not in client.updated
-    assert db.query(AuditLog).filter_by(action="patrons.update").count() == 0
+    assert db.query(AuditLog).filter_by(action="patrons.update").count() == update_before

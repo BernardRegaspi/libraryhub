@@ -178,7 +178,10 @@ def is_overdue(
 ) -> bool:
     if not due_date or checkin_date:
         return False
-    due = date.fromisoformat(due_date[:10])
+    try:
+        due = date.fromisoformat(due_date[:10])
+    except ValueError:
+        return False
     return due < today
 
 

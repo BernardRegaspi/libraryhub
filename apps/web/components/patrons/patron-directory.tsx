@@ -34,6 +34,7 @@ import {
 } from "@/lib/patrons/search-params";
 import { PatronFormDialog } from "@/components/patrons/patron-form-dialog";
 import type {
+  PatronDetail,
   PatronDirectoryItem,
   PatronOptionsResponse,
   PatronSearchResponse,
@@ -108,9 +109,11 @@ function PatronTableSkeleton() {
 function PatronRow({
   patron,
   canUpdate,
+  onEdit,
 }: {
   patron: PatronDirectoryItem;
   canUpdate: boolean;
+  onEdit: (patronId: number) => void;
 }) {
   const name = displayName(patron);
   const badgeList = statusBadges(patron);
@@ -186,7 +189,13 @@ function PatronRow({
                 View
               </DropdownMenuItem>
               {canUpdate ? (
-                <DropdownMenuItem>Edit</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    onEdit(patron.patron_id);
+                  }}
+                >
+                  Edit
+                </DropdownMenuItem>
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -212,6 +221,9 @@ export function PatronDirectory({
   const state = parsePatronSearch(urlParams);
   const [draftQ, setDraftQ] = useState(state.q);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPatronId, setEditPatronId] = useState<number | null>(null);
+  const [editInitial, setEditInitial] = useState<PatronDetail | null>(null);
 
   useEffect(() => {
     setDraftQ(state.q);
@@ -272,6 +284,25 @@ export function PatronDirectory({
       status: "",
       page: 1,
     });
+  }
+
+  async function openPatronEdit(patronId: number) {
+    try {
+      const detail = await fetchApi<PatronDetail>(`/patrons/${patronId}`);
+      setEditPatronId(patronId);
+      setEditInitial(detail);
+      setEditOpen(true);
+    } catch {
+      // Leave the dialog closed when the patron record cannot be loaded.
+    }
+  }
+
+  function closePatronEdit(open: boolean) {
+    setEditOpen(open);
+    if (!open) {
+      setEditPatronId(null);
+      setEditInitial(null);
+    }
   }
 
   return (
@@ -473,6 +504,7 @@ export function PatronDirectory({
                       key={patron.patron_id}
                       patron={patron}
                       canUpdate={canUpdate}
+                      onEdit={openPatronEdit}
                     />
                   ))
                 )}
@@ -498,6 +530,16 @@ export function PatronDirectory({
           canSensitive={canSensitive}
           open={createOpen}
           onOpenChange={setCreateOpen}
+        />
+      ) : null}
+      {canUpdate && editPatronId !== null && editInitial ? (
+        <PatronFormDialog
+          mode="edit"
+          patronId={editPatronId}
+          initial={editInitial}
+          canSensitive={canSensitive}
+          open={editOpen}
+          onOpenChange={closePatronEdit}
         />
       ) : null}
     </>
