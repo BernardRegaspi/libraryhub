@@ -41,15 +41,13 @@ def begin_request(
                 request_id=str(request_id),
                 items=existing.result.get("items"),
             )
-        if user_id is None:
-            raise CirculationError(
-                409,
-                "still_processing",
-                "That transaction is still in progress.",
-                request_id=str(request_id),
-                items=existing.result.get("items"),
-            )
-        return existing
+        raise CirculationError(
+            409,
+            "still_processing",
+            "That transaction is still in progress.",
+            request_id=str(request_id),
+            items=existing.result.get("items"),
+        )
     row = CirculationRequest(
         id=request_id,
         user_id=user_id,

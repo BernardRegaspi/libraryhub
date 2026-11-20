@@ -36,14 +36,16 @@ def test_begin_request_inserts_once_and_replay_completed(db):
         patron_id=9,
     )
     db.commit()
-    second = begin_request(
-        db,
-        request_id=request_id,
-        user_id=admin_id,
-        action="checkout",
-        patron_id=9,
-    )
-    assert second.id == first.id
+    with pytest.raises(CirculationError) as exc:
+        begin_request(
+            db,
+            request_id=request_id,
+            user_id=admin_id,
+            action="checkout",
+            patron_id=9,
+        )
+    assert exc.value.code == "still_processing"
+    assert exc.value.status_code == 409
     store_result(
         db,
         first,
