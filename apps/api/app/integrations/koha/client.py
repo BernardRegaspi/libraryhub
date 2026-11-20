@@ -173,6 +173,18 @@ class KohaClient:
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)], headers
 
+    def search_patrons(self, params: dict) -> list[dict]:
+        body, _headers = self.get_json("/patrons", params)
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
+
+    def search_items(self, params: dict) -> list[dict]:
+        body, _headers = self.get_json("/items", params)
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
+
     def get_patron(self, patron_id: int) -> dict:
         body, _headers = self.get_json(f"/patrons/{patron_id}")
         if not isinstance(body, dict):
