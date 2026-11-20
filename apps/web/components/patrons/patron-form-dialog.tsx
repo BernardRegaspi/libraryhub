@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -222,26 +222,48 @@ function FormField({
 }
 
 export function PatronFormDialog({
+  open,
+  onOpenChange,
+  mode,
+  patronId,
+  ...rest
+}: PatronFormDialogProps) {
+  const sessionKey =
+    mode === "edit" && patronId != null ? `edit-${patronId}` : "create";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <PatronFormDialogContent
+          key={sessionKey}
+          mode={mode}
+          patronId={patronId}
+          onOpenChange={onOpenChange}
+          {...rest}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function PatronFormDialogContent({
   mode,
   patronId,
   initial,
   canSensitive,
-  open,
   onOpenChange,
-}: PatronFormDialogProps) {
+}: Omit<PatronFormDialogProps, "open">) {
   const queryClient = useQueryClient();
-  const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
+  const [fields, setFields] = useState(() => formFromPatron(initial));
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [topMessage, setTopMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [duplicateConflict, setDuplicateConflict] = useState(false);
-  const wasOpenRef = useRef(false);
 
   const optionsQuery = useQuery({
     queryKey: ["patrons", "options"],
     queryFn: () => fetchApi<PatronOptionsResponse>("/patrons/options"),
-    enabled: open,
   });
 
   const categories = optionsQuery.data?.categories ?? null;
@@ -251,28 +273,6 @@ export function PatronFormDialog({
     optionsQuery.isError ||
     categories === null ||
     libraries === null;
-
-  useEffect(() => {
-    const wasOpen = wasOpenRef.current;
-    wasOpenRef.current = open;
-
-    if (!open) {
-      setConfirming(false);
-      setSubmitting(false);
-      setTopMessage(null);
-      setFieldErrors({});
-      setDuplicateConflict(false);
-      return;
-    }
-
-    if (!wasOpen) {
-      setFields(formFromPatron(initial));
-      setConfirming(false);
-      setTopMessage(null);
-      setFieldErrors({});
-      setDuplicateConflict(false);
-    }
-  }, [open, initial]);
 
   function setField<K extends keyof FormFields>(key: K, value: FormFields[K]) {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -357,7 +357,6 @@ export function PatronFormDialog({
   const isCreate = mode === "create";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex max-h-[min(90vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
         showCloseButton={!submitting}
@@ -744,6 +743,5 @@ export function PatronFormDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
   );
 }

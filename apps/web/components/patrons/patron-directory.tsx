@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { MoreVerticalIcon, SearchIcon } from "@hugeicons/core-free-icons";
@@ -222,6 +222,45 @@ export type PatronDirectoryProps = {
   canSensitive: boolean;
 };
 
+function PatronSearchQueryInput({
+  committedQ,
+  state,
+  onCommit,
+}: {
+  committedQ: string;
+  state: PatronSearchState;
+  onCommit: (next: PatronSearchState) => void;
+}) {
+  const [draftQ, setDraftQ] = useState(committedQ);
+
+  useEffect(() => {
+    if (draftQ === committedQ) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const q = draftQ.length > 80 ? draftQ.slice(0, 80) : draftQ;
+      onCommit({ ...state, q, page: 1 });
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [committedQ, draftQ, onCommit, state]);
+
+  return (
+    <div className="relative min-w-0 flex-1">
+      <HugeiconsIcon
+        icon={SearchIcon}
+        strokeWidth={2}
+        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground opacity-50 select-none"
+      />
+      <Input
+        value={draftQ}
+        onChange={(event) => setDraftQ(event.target.value)}
+        placeholder="Name, card number, or userid"
+        className="h-9 pl-9 text-sm"
+      />
+    </div>
+  );
+}
+
 export function PatronDirectory({
   canCreate,
   canUpdate,
@@ -230,31 +269,18 @@ export function PatronDirectory({
   const router = useRouter();
   const urlParams = useSearchParams();
   const state = parsePatronSearch(urlParams);
-  const [draftQ, setDraftQ] = useState(state.q);
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editPatronId, setEditPatronId] = useState<number | null>(null);
   const [editInitial, setEditInitial] = useState<PatronDetail | null>(null);
 
-  useEffect(() => {
-    setDraftQ(state.q);
-  }, [state.q]);
-
-  function replaceState(next: PatronSearchState) {
-    const query = serializePatronSearch(next);
-    router.replace(query ? `/patrons?${query}` : "/patrons");
-  }
-
-  useEffect(() => {
-    if (draftQ === state.q) {
-      return;
-    }
-    const handle = window.setTimeout(() => {
-      const q = draftQ.length > 80 ? draftQ.slice(0, 80) : draftQ;
-      replaceState({ ...state, q, page: 1 });
-    }, 300);
-    return () => window.clearTimeout(handle);
-  }, [draftQ, state, router]);
+  const replaceState = useCallback(
+    (next: PatronSearchState) => {
+      const query = serializePatronSearch(next);
+      router.replace(query ? `/patrons?${query}` : "/patrons");
+    },
+    [router],
+  );
 
   const searchKey = serializePatronSearch(state);
 
@@ -353,19 +379,12 @@ export function PatronDirectory({
         />
         <div className="min-w-0 rounded-lg border border-border bg-card p-4">
           <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center">
-            <div className="relative min-w-0 flex-1">
-              <HugeiconsIcon
-                icon={SearchIcon}
-                strokeWidth={2}
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground opacity-50 select-none"
-              />
-              <Input
-                value={draftQ}
-                onChange={(event) => setDraftQ(event.target.value)}
-                placeholder="Name, card number, or userid"
-                className="h-9 pl-9 text-sm"
-              />
-            </div>
+            <PatronSearchQueryInput
+              key={state.q}
+              committedQ={state.q}
+              state={state}
+              onCommit={replaceState}
+            />
             <div className="flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap">
               <Select
                 value={categoriesUnavailable ? "" : state.categoryId}
