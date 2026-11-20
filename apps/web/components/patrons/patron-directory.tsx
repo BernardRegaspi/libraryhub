@@ -197,11 +197,13 @@ function PatronRow({
 }
 
 export type PatronDirectoryProps = {
+  canCreate: boolean;
   canUpdate: boolean;
   canSensitive: boolean;
 };
 
 export function PatronDirectory({
+  canCreate,
   canUpdate,
   canSensitive,
 }: PatronDirectoryProps) {
@@ -280,7 +282,7 @@ export function PatronDirectory({
         description={PATRON_DESCRIPTION}
         hideModuleSentence
         actions={
-          canUpdate ? (
+          canCreate ? (
             <Button type="button" onClick={() => setCreateOpen(true)}>
               Add patron
             </Button>
@@ -490,7 +492,7 @@ export function PatronDirectory({
         ) : null}
       </div>
 
-      {canUpdate ? (
+      {canCreate ? (
         <PatronFormDialog
           mode="create"
           canSensitive={canSensitive}

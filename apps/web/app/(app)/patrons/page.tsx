@@ -12,12 +12,14 @@ export default async function PatronsPage() {
     return <AccessDenied roleName={gate.roleName} />;
   }
 
+  const canCreate = gate.me.permissions.includes("patrons.create");
   const canUpdate = gate.me.permissions.includes("patrons.update");
   const canSensitive = gate.me.permissions.includes("patrons.sensitive.view");
 
   return (
     <Suspense fallback={null}>
       <PatronDirectory
+        canCreate={canCreate}
         canUpdate={canUpdate}
         canSensitive={canSensitive}
       />
