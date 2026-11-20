@@ -47,6 +47,17 @@ export type PatronOptionsResponse = {
   libraries: PatronLibraryOption[] | null;
 };
 
+export type PatronSummary = {
+  total: number | null;
+  students: number | null;
+  faculty_staff: number | null;
+  outstanding_fines: number | null;
+};
+
+export type PatronAccountResponse =
+  | { status: "ok"; balance: number | null }
+  | { status: "unavailable" };
+
 export type PatronSearchResponse = {
   query: string;
   page: number;

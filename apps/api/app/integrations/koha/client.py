@@ -179,6 +179,12 @@ class KohaClient:
             raise KohaResponseError
         return body
 
+    def get_patron_balance(self, patron_id: int):
+        body, _headers = self.get_json(f"/patrons/{patron_id}/account")
+        if not isinstance(body, dict) or "balance" not in body:
+            raise KohaResponseError
+        return body.get("balance")
+
     def create_patron(self, body: dict, *, confirm_duplicate: bool) -> dict:
         extra_headers = {"x-confirm-not-duplicate": "1"} if confirm_duplicate else None
         result, _headers = self.post_json("/patrons", body, extra_headers=extra_headers)

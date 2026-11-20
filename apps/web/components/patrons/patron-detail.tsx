@@ -3,13 +3,27 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  ArrowReloadHorizontalIcon,
+  EyeIcon,
+} from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchApi } from "@/lib/api";
-import { displayName, initials, statusBadges } from "@/lib/patrons/display";
+import {
+  displayName,
+  formatPatronDate,
+  formatPeso,
+  initials,
+  maskEmail,
+  standingBadge,
+  statusBadges,
+} from "@/lib/patrons/display";
 import { PatronFormDialog } from "@/components/patrons/patron-form-dialog";
 import type {
+  PatronAccountResponse,
   PatronCheckoutItem,
   PatronCheckoutsResponse,
   PatronDetail,
@@ -21,6 +35,7 @@ export type PatronDetailViewProps = {
   patronId: string;
   canUpdate: boolean;
   canSensitive: boolean;
+  canCirculate: boolean;
 };
 
 function FilterBadge({ children }: { children: React.ReactNode }) {
@@ -118,12 +133,111 @@ function hasSensitiveKey(
   return Object.prototype.hasOwnProperty.call(patron, key);
 }
 
+function CurrentLoans({
+  checkoutsQuery,
+  checkouts,
+}: {
+  checkoutsQuery: {
+    isPending: boolean;
+    isError: boolean;
+    error: unknown;
+    refetch: () => Promise<unknown>;
+  };
+  checkouts: PatronCheckoutsResponse | undefined;
+}) {
+  if (checkoutsQuery.isPending) {
+    return <Skeleton className="h-24 w-full" />;
+  }
+  if (checkoutsQuery.isError) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-foreground">
+          {checkoutsQuery.error instanceof Error
+            ? checkoutsQuery.error.message
+            : "Patron records are unavailable. Try again."}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            void checkoutsQuery.refetch();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  if (checkouts?.status === "unavailable") {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-foreground">Unavailable</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            void checkoutsQuery.refetch();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  if (checkouts?.status === "ok" && checkouts.items.length === 0) {
+    return <p className="text-sm text-muted-foreground">No current loans.</p>;
+  }
+  if (checkouts?.status !== "ok") {
+    return null;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-sm">
+        <thead>
+          <tr className="bg-parchment text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            <th className="px-3 py-2 font-semibold">Item</th>
+            <th className="px-3 py-2 text-right font-semibold">Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          {checkouts.items.map((item, index) => (
+            <tr
+              key={item.checkout_id ?? `${item.item_id}-${index}`}
+              className="border-b border-border last:border-0"
+            >
+              <td className="px-3 py-3 text-foreground">
+                <span className="block font-medium">{loanTitleCell(item)}</span>
+                {"external_id" in item && item.external_id ? (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {item.external_id}
+                  </span>
+                ) : null}
+              </td>
+              <td className="px-3 py-3 text-right text-foreground">
+                {formatPatronDate(item.due_date)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const STANDING_CLASS = {
+  good: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  overdue: "border-amber-200 bg-amber-50 text-amber-800",
+  blocked: "border-red-200 bg-red-50 text-red-800",
+} as const;
+
 export function PatronDetailView({
   patronId,
   canUpdate,
   canSensitive,
+  canCirculate,
 }: PatronDetailViewProps) {
   const [editOpen, setEditOpen] = useState(false);
+  const [accessLogged, setAccessLogged] = useState(false);
   const patronQuery = useQuery({
     queryKey: ["patrons", patronId],
     queryFn: () => fetchApi<PatronDetail>(`/patrons/${patronId}`),
@@ -139,6 +253,13 @@ export function PatronDetailView({
   const holdsQuery = useQuery({
     queryKey: ["patrons", patronId, "holds"],
     queryFn: () => fetchApi<PatronHoldsResponse>(`/patrons/${patronId}/holds`),
+    enabled: patronQuery.isSuccess,
+  });
+
+  const accountQuery = useQuery({
+    queryKey: ["patrons", patronId, "account"],
+    queryFn: () =>
+      fetchApi<PatronAccountResponse>(`/patrons/${patronId}/account`),
     enabled: patronQuery.isSuccess,
   });
 
@@ -186,34 +307,26 @@ export function PatronDetailView({
 
   const checkouts = checkoutsQuery.data;
   const holds = holdsQuery.data;
-
-  const loanCount =
-    checkouts?.status === "ok" ? checkouts.items.length : null;
   const overdueCount =
-    checkouts?.status === "ok"
+    patron.overdues_count ??
+    (checkouts?.status === "ok"
       ? checkouts.items.filter((item) => item.overdue).length
-      : null;
-  const holdCount = holds?.status === "ok" ? holds.items.length : null;
-
-  const loanSummary = checkoutsQuery.isPending
-    ? "—"
-    : checkouts?.status === "unavailable"
-      ? "Unavailable"
-      : String(loanCount ?? 0);
-  const overdueSummary = checkoutsQuery.isPending
-    ? "—"
-    : checkouts?.status === "unavailable"
-      ? "Unavailable"
-      : String(overdueCount ?? 0);
-  const holdSummary = holdsQuery.isPending
-    ? "—"
-    : holds?.status === "unavailable"
-      ? "Unavailable"
-      : String(holdCount ?? 0);
-
-  const showBarcodeColumn =
-    checkouts?.status === "ok" &&
-    checkouts.items.some((item) => "external_id" in item && item.external_id != null);
+      : null);
+  const standing = standingBadge({
+    expired: patron.expired,
+    restricted: patron.restricted,
+    overdues_count: overdueCount,
+  });
+  const account = accountQuery.data;
+  const balanceText = accountQuery.isPending
+    ? "…"
+    : account?.status === "ok" && typeof account.balance === "number"
+      ? formatPeso(account.balance)
+      : "Unavailable";
+  const balanceDue =
+    account?.status === "ok" &&
+    typeof account.balance === "number" &&
+    account.balance > 0;
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6 lg:px-8">
@@ -237,60 +350,104 @@ export function PatronDetailView({
         ) : null}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
-          <div
-            className="flex size-16 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground"
-            aria-hidden
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(34,26,24,0.04)] sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-maroon-700 font-display text-xl font-bold text-gold-300"
+              aria-hidden
+            >
+              {initials(name)}
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                {name}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {patron.category_name ?? patron.category_id ?? "Category unavailable"}
+              </p>
+            </div>
+          </div>
+          <span
+            className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${STANDING_CLASS[standing.tone]}`}
           >
-            {initials(name)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
-              {name}
-            </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              {patron.category_name ? (
-                <FilterBadge>{patron.category_name}</FilterBadge>
-              ) : null}
-              {patron.library_name ? (
-                <span>{patron.library_name}</span>
-              ) : null}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {badgeList.map((badge) => (
-                <FilterBadge key={badge}>{badge}</FilterBadge>
-              ))}
-            </div>
-          </div>
+            <span className="size-1.5 rounded-full bg-current" aria-hidden />
+            {standing.label}
+          </span>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-border pt-6 text-center">
+        <dl className="mt-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <div>
-            <p className="font-display text-xl font-semibold text-foreground">
-              {loanSummary}
-            </p>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              On loan
-            </p>
+            <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Card number
+            </dt>
+            <dd className="mt-1 font-mono text-xs text-foreground">
+              {fieldValue(patron.cardnumber)}
+            </dd>
           </div>
           <div>
-            <p className="font-display text-xl font-semibold text-foreground">
-              {overdueSummary}
-            </p>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Overdue
-            </p>
+            <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Home library
+            </dt>
+            <dd className="mt-1 text-foreground">
+              {patron.library_name ?? "Unavailable"}
+            </dd>
           </div>
           <div>
-            <p className="font-display text-xl font-semibold text-foreground">
-              {holdSummary}
-            </p>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Holds
-            </p>
+            <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Email (masked)
+            </dt>
+            <dd className="mt-1 text-foreground">{maskEmail(patron.email)}</dd>
           </div>
+          <div>
+            <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Outstanding fines
+            </dt>
+            <dd
+              className={`mt-1 ${balanceDue ? "font-semibold text-red-700" : "text-foreground"}`}
+            >
+              {balanceText}
+            </dd>
+          </div>
+        </dl>
+
+        <h2 className="mt-6 mb-2 text-sm font-semibold text-foreground">
+          Current loans
+        </h2>
+        <CurrentLoans checkoutsQuery={checkoutsQuery} checkouts={checkouts} />
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {canCirculate ? (
+            <Button
+              className="h-9 rounded-lg px-3.5 text-sm"
+              nativeButton={false}
+              render={<Link href="/circulation" />}
+            >
+              <HugeiconsIcon icon={ArrowReloadHorizontalIcon} strokeWidth={2} />
+              Go to circulation
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 rounded-lg px-3.5 text-sm"
+            onClick={() => {
+              void patronQuery.refetch().then((result) => {
+                if (!result.isError) {
+                  setAccessLogged(true);
+                }
+              });
+            }}
+          >
+            <HugeiconsIcon icon={EyeIcon} strokeWidth={2} />
+            Log access
+          </Button>
         </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          {accessLogged
+            ? "Access to this record has been logged."
+            : "Viewing patron records is recorded in the audit log."}
+        </p>
       </div>
 
       <SectionCard title="Personal information">
@@ -300,7 +457,9 @@ export function PatronDetailView({
             {fieldValue(patron.cardnumber)}
           </DetailField>
           <DetailField label="Userid">{fieldValue(patron.userid)}</DetailField>
-          <DetailField label="Email">{fieldValue(patron.email)}</DetailField>
+          <DetailField label="Email (masked)">
+            {maskEmail(patron.email)}
+          </DetailField>
           <DetailField label="Phone">{fieldValue(patron.phone)}</DetailField>
           <DetailField label="Mobile">{fieldValue(patron.mobile)}</DetailField>
           {canSensitive && hasSensitiveKey(patron, "date_of_birth") ? (
@@ -369,88 +528,6 @@ export function PatronDetailView({
             </dd>
           </div>
         </dl>
-      </SectionCard>
-
-      <SectionCard title="Loans">
-        {checkoutsQuery.isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : checkoutsQuery.isError ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-foreground">
-              {checkoutsQuery.error instanceof Error
-                ? checkoutsQuery.error.message
-                : "Patron records are unavailable. Try again."}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void checkoutsQuery.refetch();
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : checkouts?.status === "unavailable" ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-foreground">Unavailable</p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void checkoutsQuery.refetch();
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : checkouts?.status === "ok" && checkouts.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No current loans.</p>
-        ) : checkouts?.status === "ok" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th className="px-2 py-2 font-semibold">Title</th>
-                  <th className="px-2 py-2 font-semibold">Checked out</th>
-                  <th className="px-2 py-2 font-semibold">Due</th>
-                  <th className="px-2 py-2 font-semibold">Renewals</th>
-                  {showBarcodeColumn ? (
-                    <th className="px-2 py-2 font-semibold">Barcode</th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {checkouts.items.map((item, index) => (
-                  <tr
-                    key={item.checkout_id ?? `${item.item_id}-${index}`}
-                    className="border-b border-border"
-                  >
-                    <td className="px-2 py-2 text-foreground">
-                      {loanTitleCell(item)}
-                    </td>
-                    <td className="px-2 py-2 text-foreground">
-                      {fieldValue(item.checkout_date)}
-                    </td>
-                    <td className="px-2 py-2 text-foreground">
-                      {fieldValue(item.due_date)}
-                    </td>
-                    <td className="px-2 py-2 text-foreground">
-                      {item.renewals_count ?? "—"}
-                    </td>
-                    {showBarcodeColumn ? (
-                      <td className="px-2 py-2 text-foreground">
-                        {"external_id" in item && item.external_id != null
-                          ? item.external_id
-                          : "—"}
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
       </SectionCard>
 
       <SectionCard title="Holds">

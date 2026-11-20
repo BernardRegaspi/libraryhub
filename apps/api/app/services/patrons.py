@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -344,6 +345,125 @@ def _load_label_maps(
     return categories or {}, libraries or {}
 
 
+def _manila_today() -> str:
+    return datetime.now(ZoneInfo("Asia/Manila")).date().isoformat()
+
+
+def _patron_total(client, query: dict | None) -> int | None:
+    koha_params: dict[str, str] = {
+        "_page": "1",
+        "_per_page": "1",
+        "_order_by": "surname",
+    }
+    if query is not None:
+        koha_params["q"] = json.dumps(query)
+    _rows, headers = client.list_patrons(koha_params)
+    return _parse_total(headers)
+
+
+def _category_role(name: str) -> str | None:
+    folded = name.casefold()
+    if "student" in folded:
+        return "student"
+    if "faculty" in folded or "staff" in folded or "teacher" in folded:
+        return "faculty_staff"
+    return None
+
+
+def _sum_category_role(
+    client,
+    params: PatronSearchParams,
+    today: str,
+    roles: dict[str, str],
+    role: str,
+) -> int | None:
+    total = 0
+    matched = False
+    for category_id, category_role in roles.items():
+        if category_role != role:
+            continue
+        matched = True
+        query = build_patron_query(
+            params.q,
+            category_id=category_id,
+            library_id=params.library_id,
+            status=params.status,
+            today=today,
+        )
+        try:
+            count = _patron_total(client, query)
+        except KohaError:
+            return None
+        if count is None:
+            return None
+        total += count
+    if not matched:
+        return 0
+    return total
+
+
+def patron_summary(client, params: PatronSearchParams) -> dict:
+    validate_search(params)
+    today = _manila_today()
+    query = build_patron_query(
+        params.q,
+        category_id=params.category_id,
+        library_id=params.library_id,
+        status=params.status,
+        today=today,
+    )
+    try:
+        total = _patron_total(client, query)
+    except KohaTimeoutError as exc:
+        raise _TIMEOUT from exc
+    except KohaError as exc:
+        raise _UNAVAILABLE from exc
+    students: int | None = None
+    faculty_staff: int | None = None
+    try:
+        categories = client.list_patron_categories()
+    except KohaError:
+        categories = None
+    if total is not None and categories is not None:
+        roles = {
+            str(row["patron_category_id"]): role
+            for row in categories
+            if row.get("patron_category_id") is not None
+            and isinstance(row.get("name"), str)
+            and (role := _category_role(row["name"])) is not None
+        }
+        if params.category_id:
+            selected = roles.get(params.category_id)
+            students = total if selected == "student" else 0
+            faculty_staff = total if selected == "faculty_staff" else 0
+        else:
+            students = _sum_category_role(client, params, today, roles, "student")
+            faculty_staff = _sum_category_role(
+                client, params, today, roles, "faculty_staff"
+            )
+    return {
+        "total": total,
+        "students": students,
+        "faculty_staff": faculty_staff,
+        "outstanding_fines": None,
+    }
+
+
+def patron_balance(client, patron_id: int) -> dict:
+    try:
+        balance = client.get_patron_balance(patron_id)
+    except KohaError:
+        return {"status": "unavailable"}
+    if isinstance(balance, str):
+        try:
+            balance = float(balance)
+        except ValueError:
+            return {"status": "unavailable"}
+    if isinstance(balance, bool) or not isinstance(balance, (int, float)):
+        return {"status": "unavailable"}
+    return {"status": "ok", "balance": balance}
+
+
 def search_patrons(client, params: PatronSearchParams) -> dict:
     validate_search(params)
     categories, libraries = _load_label_maps(client, params)
@@ -352,6 +472,7 @@ def search_patrons(client, params: PatronSearchParams) -> dict:
         category_id=params.category_id,
         library_id=params.library_id,
         status=params.status,
+        today=_manila_today(),
     )
     koha_params: dict[str, str] = {
         "_page": str(params.page),

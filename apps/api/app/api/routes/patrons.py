@@ -23,7 +23,9 @@ from app.services.patrons import (
     get_patron_detail,
     patron_checkouts,
     patron_holds,
+    patron_balance,
     patron_options,
+    patron_summary,
     search_patrons,
     update_patron_record,
 )
@@ -147,6 +149,39 @@ def patrons_list_options(
     client = _koha_client()
     try:
         return patron_options(client)
+    except KohaError as exc:
+        _handle_koha(exc)
+
+
+@router.get("/summary")
+def patrons_summary(
+    _user: Annotated[
+        tuple[CurrentUserOut, UserSession],
+        Depends(require_patron_permission("patrons.view")),
+    ],
+    params: Annotated[PatronSearchParams, Query()],
+) -> dict:
+    client = _koha_client()
+    try:
+        return patron_summary(client, params)
+    except PatronError as exc:
+        _raise_patron(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
+
+
+@router.get("/{patron_id}/account")
+def patrons_account(
+    patron_id: str,
+    _user: Annotated[
+        tuple[CurrentUserOut, UserSession],
+        Depends(require_patron_permission("patrons.view")),
+    ],
+) -> dict:
+    parsed_id = _parse_patron_id(patron_id)
+    client = _koha_client()
+    try:
+        return patron_balance(client, parsed_id)
     except KohaError as exc:
         _handle_koha(exc)
 

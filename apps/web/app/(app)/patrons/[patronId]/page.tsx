@@ -33,12 +33,14 @@ export default async function PatronDetailPage({ params }: PatronDetailPageProps
 
   const canUpdate = gate.me.permissions.includes("patrons.update");
   const canSensitive = gate.me.permissions.includes("patrons.sensitive.view");
+  const canCirculate = gate.me.permissions.includes("circulation.view");
 
   return (
     <PatronDetailView
       patronId={patronId}
       canUpdate={canUpdate}
       canSensitive={canSensitive}
+      canCirculate={canCirculate}
     />
   );
 }

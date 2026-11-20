@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { displayName, initials, isOverdueDate, statusBadges } from "./display.ts";
+import {
+  displayName,
+  formatPatronDate,
+  formatPeso,
+  initials,
+  isOverdueDate,
+  maskEmail,
+  standingBadge,
+  statusBadges,
+} from "./display.ts";
 
 test("display name, initials, badges, and manila overdue", () => {
   assert.equal(
@@ -61,5 +70,24 @@ test("display name, initials, badges, and manila overdue", () => {
   assert.equal(
     isOverdueDate("2026-11-20", null, new Date("2026-11-20T00:30:00+08:00")),
     false,
+  );
+});
+
+test("masks email, formats peso and dates, and names standing", () => {
+  assert.equal(maskEmail("a.mercado@usant.edu.ph"), "a.mercado@••••.edu.ph");
+  assert.equal(maskEmail(null), "—");
+  assert.equal(formatPatronDate("2026-11-17"), "Nov 17, 2026");
+  assert.equal(formatPeso(0), "₱0.00");
+  assert.deepEqual(
+    standingBadge({ expired: 0, restricted: 0, overdues_count: 0 }),
+    { label: "Good standing", tone: "good" },
+  );
+  assert.equal(
+    standingBadge({ expired: 1, restricted: 0, overdues_count: 0 }).label,
+    "Blocked",
+  );
+  assert.equal(
+    standingBadge({ expired: 0, restricted: 0, overdues_count: 2 }).label,
+    "Has overdue items",
   );
 });

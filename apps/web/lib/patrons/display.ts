@@ -50,6 +50,65 @@ export function initials(name: string): string {
   return word.slice(0, 1).toUpperCase();
 }
 
+export function maskEmail(email: string | null | undefined): string {
+  const value = nonBlank(email);
+  if (!value) {
+    return "—";
+  }
+  const at = value.indexOf("@");
+  if (at <= 0 || at === value.length - 1) {
+    return value;
+  }
+  const local = value.slice(0, at);
+  const labels = value.slice(at + 1).split(".");
+  if (labels.length < 2) {
+    return `${local}@••••`;
+  }
+  return `${local}@••••.${labels.slice(1).join(".")}`;
+}
+
+export function formatPatronDate(value: string | null | undefined): string {
+  if (!value) {
+    return "—";
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) {
+    return value;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+export function formatPeso(amount: number): string {
+  return `₱${amount.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export type StandingTone = "good" | "overdue" | "blocked";
+
+export function standingBadge(patron: {
+  expired: number | boolean;
+  restricted: number | boolean;
+  overdues_count: number | null;
+}): { label: string; tone: StandingTone } {
+  if (patron.expired || patron.restricted) {
+    return { label: "Blocked", tone: "blocked" };
+  }
+  if (patron.overdues_count != null && patron.overdues_count > 0) {
+    return { label: "Has overdue items", tone: "overdue" };
+  }
+  return { label: "Good standing", tone: "good" };
+}
+
 export function statusBadges(patron: PatronStatusInput): string[] {
   const badges: string[] = [];
   if (patron.expired) {

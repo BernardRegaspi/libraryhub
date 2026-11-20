@@ -33,11 +33,13 @@ import {
   type PatronSearchState,
 } from "@/lib/patrons/search-params";
 import { PatronFormDialog } from "@/components/patrons/patron-form-dialog";
+import { PatronKpis } from "@/components/patrons/patron-kpis";
 import type {
   PatronDetail,
   PatronDirectoryItem,
   PatronOptionsResponse,
   PatronSearchResponse,
+  PatronSummary,
 } from "@/lib/patrons/types";
 
 const PATRON_DESCRIPTION =
@@ -61,6 +63,15 @@ function buildPatronApiQuery(state: PatronSearchState): string {
   params.set("per_page", "20");
   params.set("sort", state.sort);
   params.set("direction", state.direction);
+  return params.toString();
+}
+
+function buildSummaryQuery(state: PatronSearchState): string {
+  const params = new URLSearchParams(buildPatronApiQuery({ ...state, page: 1 }));
+  params.delete("page");
+  params.delete("per_page");
+  params.delete("sort");
+  params.delete("direction");
   return params.toString();
 }
 
@@ -261,8 +272,21 @@ export function PatronDirectory({
     placeholderData: (previous) => previous,
   });
 
+  const summaryParams = buildSummaryQuery(state);
+  const summaryQuery = useQuery({
+    queryKey: ["patrons", "summary", summaryParams],
+    queryFn: () =>
+      fetchApi<PatronSummary>(
+        summaryParams ? `/patrons/summary?${summaryParams}` : "/patrons/summary",
+      ),
+  });
+
   const categories = optionsQuery.data?.categories ?? null;
   const libraries = optionsQuery.data?.libraries ?? null;
+  const selectedLibrary = state.libraryId
+    ? libraries?.find((library) => library.id === state.libraryId)?.name
+    : null;
+  const scopeHint = selectedLibrary ? `at ${selectedLibrary}` : "all libraries";
   const categoriesUnavailable = categories === null;
   const librariesUnavailable = libraries === null;
 
@@ -322,6 +346,11 @@ export function PatronDirectory({
       />
 
       <div className="flex w-full min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6 lg:px-8">
+        <PatronKpis
+          summary={summaryQuery.data}
+          loading={summaryQuery.isPending}
+          scopeHint={scopeHint}
+        />
         <div className="min-w-0 rounded-lg border border-border bg-card p-4">
           <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center">
             <div className="relative min-w-0 flex-1">

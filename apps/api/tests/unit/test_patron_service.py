@@ -13,7 +13,9 @@ from app.services.patrons import (
     is_overdue,
     patron_checkouts,
     patron_holds,
+    patron_balance,
     patron_options,
+    patron_summary,
     search_patrons,
     update_patron_record,
     validate_search,
@@ -294,3 +296,37 @@ def test_update_overlays_and_a_duplicate_does_not_confirm(db):
     assert client.updated["cardnumber"] == "999"
     assert "confirm_duplicate" not in client.updated
     assert db.query(AuditLog).filter_by(action="patrons.update").count() == update_before
+
+
+def test_summary_counts_students_and_faculty_inside_the_current_filters():
+    class SummaryClient:
+        def list_patron_categories(self):
+            return [
+                {"patron_category_id": "ST", "name": "Student"},
+                {"patron_category_id": "FACULTY", "name": "Faculty"},
+                {"patron_category_id": "J", "name": "Juvenile"},
+            ]
+
+        def list_patrons(self, params):
+            raw = params.get("q") or ""
+            if '"category_id": "ST"' in raw:
+                total = "4"
+            elif '"category_id": "FACULTY"' in raw:
+                total = "2"
+            else:
+                total = "10"
+            return [], {"X-Total-Count": total}
+
+    result = patron_summary(SummaryClient(), PatronSearchParams(q="Ada"))
+    assert result["total"] == 10
+    assert result["students"] == 4
+    assert result["faculty_staff"] == 2
+    assert result["outstanding_fines"] is None
+
+
+def test_balance_is_unavailable_when_koha_fails():
+    class Broken:
+        def get_patron_balance(self, patron_id):
+            raise KohaResponseError()
+
+    assert patron_balance(Broken(), 4) == {"status": "unavailable"}

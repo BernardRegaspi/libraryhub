@@ -1,7 +1,7 @@
 # Staff patron management
 
 Date: 2026-11-19
-Status: pending review
+Status: approved
 
 ## Purpose
 
