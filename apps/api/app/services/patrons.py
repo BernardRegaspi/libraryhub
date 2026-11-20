@@ -166,6 +166,36 @@ def hold_item(row: dict, libraries: dict[str, str]) -> dict:
     }
 
 
+def patron_checkouts(
+    client,
+    patron_id: int,
+    *,
+    include_barcode: bool,
+    today: date,
+) -> dict:
+    try:
+        rows = client.list_checkouts(patron_id)
+    except KohaError:
+        return {"status": "unavailable"}
+    items = [
+        checkout_item(row, include_barcode=include_barcode, today=today) for row in rows
+    ]
+    return {"status": "ok", "items": items}
+
+
+def patron_holds(client, patron_id: int) -> dict:
+    try:
+        rows = client.list_holds(patron_id)
+    except KohaError:
+        return {"status": "unavailable"}
+    try:
+        libraries = client.library_names()
+    except KohaError:
+        libraries = {}
+    items = [hold_item(row, libraries) for row in rows]
+    return {"status": "ok", "items": items}
+
+
 def validate_search(params: PatronSearchParams) -> None:
     for ch in params.q:
         if ord(ch) < 32 or ord(ch) == 127:

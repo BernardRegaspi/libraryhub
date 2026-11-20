@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.schemas.patrons import PatronSearchParams
+from app.integrations.koha.exceptions import KohaResponseError
 from app.services.patrons import (
     PatronError,
     checkout_item,
@@ -9,6 +10,8 @@ from app.services.patrons import (
     get_patron_detail,
     hold_item,
     is_overdue,
+    patron_checkouts,
+    patron_holds,
     patron_options,
     search_patrons,
     validate_search,
@@ -139,6 +142,24 @@ def test_options_null_one_list_when_that_call_fails():
     options = patron_options(Partial())
     assert options["categories"] is None
     assert options["libraries"] == [{"id": "CPL", "name": "College Library"}]
+
+
+def test_activity_failure_is_unavailable_and_success_keeps_an_empty_list():
+    class Loans:
+        def list_checkouts(self, patron_id):
+            raise KohaResponseError()
+
+        def list_holds(self, patron_id):
+            return []
+
+        def library_names(self):
+            return {}
+
+    assert patron_checkouts(Loans(), 4, include_barcode=False, today=date(2026, 11, 20)) == {
+        "status": "unavailable"
+    }
+    holds = patron_holds(Loans(), 4)
+    assert holds == {"status": "ok", "items": []}
 
 
 def test_detail_audits_without_field_values(db):
