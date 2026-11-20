@@ -1,10 +1,11 @@
 from datetime import date
 
-from app.schemas.patrons import PatronSearchParams
-from app.integrations.koha.exceptions import KohaResponseError
+from app.integrations.koha.exceptions import KohaRequestError, KohaResponseError
+from app.schemas.patrons import PatronSearchParams, PatronWrite
 from app.services.patrons import (
     PatronError,
     checkout_item,
+    create_patron_record,
     detail_item,
     directory_item,
     get_patron_detail,
@@ -14,6 +15,7 @@ from app.services.patrons import (
     patron_holds,
     patron_options,
     search_patrons,
+    update_patron_record,
     validate_search,
 )
 
@@ -206,3 +208,77 @@ def test_detail_audits_without_field_values(db):
     assert row.entity_id == "4"
     assert row.details == {"sensitive": False}
     assert "ada@usant.edu.ph" not in str(row.details)
+
+
+class WriteClient:
+    def __init__(self):
+        self.created = None
+        self.updated = None
+        self.confirm = None
+
+    def list_patron_categories(self):
+        return [{"patron_category_id": "ST", "name": "Student"}]
+
+    def library_names(self):
+        return {"CPL": "College Library"}
+
+    def create_patron(self, body, *, confirm_duplicate):
+        self.created = body
+        self.confirm = confirm_duplicate
+        return {**ROW, **body, "patron_id": 8}
+
+    def get_patron(self, patron_id):
+        return dict(ROW)
+
+    def update_patron(self, patron_id, body):
+        self.updated = body
+        return body
+
+
+def test_create_sends_required_fields_and_audits_names(db):
+    from app.models.identity import AuditLog
+
+    client = WriteClient()
+    payload = PatronWrite(surname="Cruz", library_id="CPL", category_id="ST", email="ada@usant.edu.ph")
+    created = create_patron_record(db, client, payload, user_id=None, sensitive=False)
+    assert client.created == {"surname": "Cruz", "library_id": "CPL", "category_id": "ST", "email": "ada@usant.edu.ph"}
+    assert client.confirm is False
+    assert created["patron_id"] == 8
+    audit = db.query(AuditLog).filter_by(action="patrons.create").one()
+    assert audit.details["fields"] == ["surname", "library_id", "category_id", "email"]
+    assert "ada@usant.edu.ph" not in str(audit.details)
+
+
+def test_sensitive_write_without_permission_does_not_call_koha(db):
+    client = WriteClient()
+    payload = PatronWrite(surname="Cruz", library_id="CPL", category_id="ST", staff_notes="hidden")
+    try:
+        create_patron_record(db, client, payload, user_id=None, sensitive=False)
+    except PatronError as exc:
+        assert exc.status_code == 403
+        assert exc.code == "permission_denied"
+    else:
+        raise AssertionError("expected permission_denied")
+    assert client.created is None
+
+
+def test_update_overlays_and_a_duplicate_does_not_confirm(db):
+    from app.models.identity import AuditLog
+
+    class Duplicate(WriteClient):
+        def update_patron(self, patron_id, body):
+            self.updated = body
+            raise KohaRequestError(409, ["cardnumber"])
+
+    client = Duplicate()
+    payload = PatronWrite(cardnumber="999", confirm_duplicate=True)
+    try:
+        update_patron_record(db, client, 4, payload, user_id=None, sensitive=True)
+    except PatronError as exc:
+        assert exc.code == "patron_duplicate"
+    else:
+        raise AssertionError("expected patron_duplicate")
+    assert client.updated["surname"] == "Cruz"
+    assert client.updated["cardnumber"] == "999"
+    assert "confirm_duplicate" not in client.updated
+    assert db.query(AuditLog).filter_by(action="patrons.update").count() == 0

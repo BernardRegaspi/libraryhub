@@ -6,10 +6,15 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.integrations.koha.exceptions import KohaError, KohaNotFound, KohaTimeoutError
+from app.integrations.koha.exceptions import (
+    KohaError,
+    KohaNotFound,
+    KohaRequestError,
+    KohaTimeoutError,
+)
 from app.integrations.koha.patron_query import build_patron_query, patron_order_by
 from app.models.identity import AuditLog
-from app.schemas.patrons import PatronSearchParams
+from app.schemas.patrons import PatronSearchParams, PatronWrite
 
 _DIRECTORY_FIELDS = (
     "patron_id",
@@ -57,6 +62,66 @@ _TIMEOUT = PatronError(
     "Patron records took too long to respond. Try again.",
 )
 _NOT_FOUND = PatronError(404, "not_found", "That patron was not found.")
+_PERMISSION_DENIED = PatronError(
+    403,
+    "permission_denied",
+    "You do not have access to patron records.",
+)
+
+_WRITE_ALLOWLIST = (
+    "surname",
+    "firstname",
+    "preferred_name",
+    "cardnumber",
+    "userid",
+    "email",
+    "phone",
+    "mobile",
+    "library_id",
+    "category_id",
+    "expiry_date",
+    "date_of_birth",
+    "address",
+    "address2",
+    "city",
+    "state",
+    "postal_code",
+    "country",
+    "staff_notes",
+)
+_WRITE_ALLOWLIST_SET = frozenset(_WRITE_ALLOWLIST)
+_SENSITIVE_WRITE_KEYS = frozenset(
+    {
+        "date_of_birth",
+        "address",
+        "address2",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+        "staff_notes",
+    }
+)
+_LEN_255 = frozenset(
+    {
+        "surname",
+        "firstname",
+        "preferred_name",
+        "cardnumber",
+        "userid",
+        "email",
+        "library_id",
+        "category_id",
+        "address",
+        "address2",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+    }
+)
+_LEN_64 = frozenset({"phone", "mobile"})
+_DATE_FIELDS = frozenset({"expiry_date", "date_of_birth"})
 
 
 def _lookup_name(key: Any, mapping: dict[str, str]) -> str | None:
@@ -365,6 +430,226 @@ def get_patron_detail(
             entity_type="patron",
             entity_id=str(patron_id),
             details={"sensitive": sensitive},
+        )
+    )
+    db.commit()
+    return item
+
+
+def _is_blank(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and value.strip() == "")
+
+
+def _assert_sensitive_write(payload: PatronWrite, sensitive: bool, *, update: bool) -> None:
+    if sensitive:
+        return
+    data = payload.model_dump(
+        exclude_unset=update,
+        exclude={"confirm_duplicate"},
+    )
+    for key in _SENSITIVE_WRITE_KEYS:
+        if data.get(key) is not None:
+            raise _PERMISSION_DENIED
+
+
+def _validation_failure(fields: list[dict]) -> None:
+    raise PatronError(
+        422,
+        "validation_error",
+        "That patron record is not valid.",
+        fields=fields,
+    )
+
+
+def _validate_write(
+    payload: PatronWrite,
+    *,
+    is_create: bool,
+    categories: dict[str, str],
+    libraries: dict[str, str],
+) -> None:
+    data = payload.model_dump(exclude_unset=not is_create, exclude={"confirm_duplicate"})
+    fields: list[dict] = []
+
+    if is_create:
+        for name in ("surname", "library_id", "category_id"):
+            if _is_blank(data.get(name)):
+                fields.append({"name": name, "message": "This field is required."})
+    elif "surname" in data and _is_blank(data["surname"]):
+        fields.append({"name": "surname", "message": "This field is required."})
+
+    for name, value in data.items():
+        if value is None or value == "":
+            continue
+        if name in _LEN_255 and len(value) > 255:
+            fields.append({"name": name, "message": "This value is too long."})
+        elif name in _LEN_64 and len(value) > 64:
+            fields.append({"name": name, "message": "This value is too long."})
+        elif name == "staff_notes" and len(value) > 1024:
+            fields.append({"name": name, "message": "This value is too long."})
+        elif name == "email":
+            if " " in value or value.count("@") != 1:
+                fields.append({"name": name, "message": "Enter a valid email address."})
+        elif name in _DATE_FIELDS:
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                fields.append({"name": name, "message": "Use YYYY-MM-DD."})
+        elif name == "library_id" and value not in libraries:
+            fields.append({"name": name, "message": "This value is not valid."})
+        elif name == "category_id" and value not in categories:
+            fields.append({"name": name, "message": "This value is not valid."})
+
+    if fields:
+        _validation_failure(fields)
+
+
+def _load_write_maps(client) -> tuple[dict[str, str], dict[str, str]]:
+    categories = _category_map(client)
+    libraries = _library_map(client)
+    if categories is None or libraries is None:
+        raise _UNAVAILABLE
+    return categories, libraries
+
+
+def _audit_create_fields(body: dict) -> list[str]:
+    required = [key for key in ("surname", "library_id", "category_id") if key in body]
+    rest = sorted(key for key in body if key not in {"surname", "library_id", "category_id"})
+    return required + rest
+
+
+def _create_body(payload: PatronWrite) -> dict:
+    data = payload.model_dump(exclude={"confirm_duplicate"})
+    body: dict = {}
+    for key, value in data.items():
+        if value is None or value == "":
+            continue
+        body[key] = value
+    return body
+
+
+def _merge_update(row: dict, payload: PatronWrite) -> dict:
+    merged = dict(row)
+    overlays = payload.model_dump(exclude_unset=True, exclude={"confirm_duplicate"})
+    for key, value in overlays.items():
+        merged[key] = None if value == "" else value
+    return merged
+
+
+def _changed_write_keys(before: dict, after: dict) -> list[str]:
+    changed: list[str] = []
+    for key in _WRITE_ALLOWLIST:
+        if before.get(key) != after.get(key):
+            changed.append(key)
+    return changed
+
+
+def _raise_koha_write_error(exc: KohaRequestError) -> None:
+    if exc.status_code == 409:
+        raise PatronError(
+            409,
+            "patron_duplicate",
+            "Koha already has a patron with that identifier.",
+        ) from exc
+    field_errors = [
+        {"name": name, "message": "Koha did not accept this field."}
+        for name in exc.fields
+        if name in _WRITE_ALLOWLIST_SET
+    ]
+    raise PatronError(
+        422,
+        "patron_rejected",
+        "Koha did not accept the patron record.",
+        fields=field_errors or None,
+    ) from exc
+
+
+def _detail_from_row(
+    row: dict,
+    client,
+    *,
+    sensitive: bool,
+) -> dict:
+    categories = _category_map(client) or {}
+    libraries = _library_map(client) or {}
+    return detail_item(row, categories, libraries, sensitive=sensitive)
+
+
+def create_patron_record(
+    db: Session,
+    client,
+    payload: PatronWrite,
+    *,
+    user_id,
+    sensitive: bool,
+) -> dict:
+    _assert_sensitive_write(payload, sensitive, update=False)
+    categories, libraries = _load_write_maps(client)
+    _validate_write(payload, is_create=True, categories=categories, libraries=libraries)
+    body = _create_body(payload)
+    try:
+        row = client.create_patron(body, confirm_duplicate=payload.confirm_duplicate)
+    except KohaRequestError as exc:
+        _raise_koha_write_error(exc)
+    except KohaTimeoutError as exc:
+        raise _TIMEOUT from exc
+    except KohaError as exc:
+        raise _UNAVAILABLE from exc
+    item = _detail_from_row(row, client, sensitive=sensitive)
+    patron_id = item.get("patron_id", row.get("patron_id"))
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="patrons.create",
+            module="patrons",
+            entity_type="patron",
+            entity_id=str(patron_id),
+            details={"fields": _audit_create_fields(body)},
+        )
+    )
+    db.commit()
+    return item
+
+
+def update_patron_record(
+    db: Session,
+    client,
+    patron_id: int,
+    payload: PatronWrite,
+    *,
+    user_id,
+    sensitive: bool,
+) -> dict:
+    _assert_sensitive_write(payload, sensitive, update=True)
+    try:
+        row = client.get_patron(patron_id)
+    except KohaNotFound as exc:
+        raise _NOT_FOUND from exc
+    except KohaTimeoutError as exc:
+        raise _TIMEOUT from exc
+    except KohaError as exc:
+        raise _UNAVAILABLE from exc
+    categories, libraries = _load_write_maps(client)
+    _validate_write(payload, is_create=False, categories=categories, libraries=libraries)
+    merged = _merge_update(row, payload)
+    try:
+        updated = client.update_patron(patron_id, merged)
+    except KohaRequestError as exc:
+        _raise_koha_write_error(exc)
+    except KohaTimeoutError as exc:
+        raise _TIMEOUT from exc
+    except KohaError as exc:
+        raise _UNAVAILABLE from exc
+    changed = _changed_write_keys(row, merged)
+    item = _detail_from_row(updated, client, sensitive=sensitive)
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="patrons.update",
+            module="patrons",
+            entity_type="patron",
+            entity_id=str(patron_id),
+            details={"fields": changed},
         )
     )
     db.commit()
