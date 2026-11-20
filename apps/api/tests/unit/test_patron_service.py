@@ -11,16 +11,15 @@ from app.services.patrons import (
     get_patron_detail,
     hold_item,
     is_overdue,
+    patron_balance,
     patron_checkouts,
     patron_holds,
-    patron_balance,
     patron_options,
     patron_summary,
     search_patrons,
     update_patron_record,
     validate_search,
 )
-
 
 ROW = {
     "patron_id": 4,

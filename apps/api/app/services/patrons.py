@@ -140,7 +140,7 @@ def directory_item(
     item["category_name"] = _lookup_name(row.get("category_id"), categories)
     item["library_name"] = _lookup_name(row.get("library_id"), libraries)
     for field in _COUNT_FIELDS:
-        item[field] = row[field] if field in row else None
+        item[field] = row.get(field, None)
     return item
 
 
@@ -605,11 +605,7 @@ def _validate_write(
     for name, value in data.items():
         if value is None or value == "":
             continue
-        if name in _LEN_255 and len(value) > 255:
-            fields.append({"name": name, "message": "This value is too long."})
-        elif name in _LEN_64 and len(value) > 64:
-            fields.append({"name": name, "message": "This value is too long."})
-        elif name == "staff_notes" and len(value) > 1024:
+        if name in _LEN_255 and len(value) > 255 or name in _LEN_64 and len(value) > 64 or name == "staff_notes" and len(value) > 1024:
             fields.append({"name": name, "message": "This value is too long."})
         elif name == "email":
             if " " in value or value.count("@") != 1:
@@ -619,9 +615,7 @@ def _validate_write(
                 date.fromisoformat(value)
             except ValueError:
                 fields.append({"name": name, "message": "Use YYYY-MM-DD."})
-        elif name == "library_id" and value not in libraries:
-            fields.append({"name": name, "message": "This value is not valid."})
-        elif name == "category_id" and value not in categories:
+        elif name == "library_id" and value not in libraries or name == "category_id" and value not in categories:
             fields.append({"name": name, "message": "This value is not valid."})
 
     if fields:

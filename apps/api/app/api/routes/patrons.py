@@ -21,9 +21,9 @@ from app.services.patrons import (
     PatronError,
     create_patron_record,
     get_patron_detail,
+    patron_balance,
     patron_checkouts,
     patron_holds,
-    patron_balance,
     patron_options,
     patron_summary,
     search_patrons,
@@ -123,13 +123,12 @@ def _manila_today() -> date:
 
 @router.get("")
 def patrons_search(
-    user: Annotated[
+    _user: Annotated[
         tuple[CurrentUserOut, UserSession],
         Depends(require_patron_permission("patrons.view")),
     ],
     params: Annotated[PatronSearchParams, Query()],
 ) -> dict:
-    payload, _session = user
     client = _koha_client()
     try:
         return search_patrons(client, params)

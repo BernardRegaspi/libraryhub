@@ -2,7 +2,6 @@ from sqlalchemy import text
 
 from app.models.identity import Permission
 
-
 CODES = ("patrons.sensitive.view", "patrons.create", "patrons.update")
 ADMINS = ("Super Administrator", "Library Administrator")
 OTHERS = ("Department Head", "Librarian", "Student", "Auditor")
