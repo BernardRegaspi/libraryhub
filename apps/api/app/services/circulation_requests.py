@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.circulation import CirculationRequest
 from app.services.circulation_errors import CirculationError
 
@@ -17,12 +18,18 @@ def begin_request(
     user_id: uuid.UUID | None,
     action: str,
     patron_id: int | None,
-    timeout_seconds: float = 15.0,
+    timeout_seconds: float | None = None,
 ) -> CirculationRequest:
+    if timeout_seconds is None:
+        timeout_seconds = get_settings().koha_api_timeout
     existing = load_request(db, request_id)
     if existing is not None:
+        was_in_progress = existing.status == "in_progress"
         mark_stale_unknown(db, existing, timeout_seconds=timeout_seconds)
-        db.flush()
+        if was_in_progress and existing.status == "unknown":
+            db.commit()
+        else:
+            db.flush()
         if existing.status == "completed":
             if _confirmation_required(existing):
                 raise CirculationError(

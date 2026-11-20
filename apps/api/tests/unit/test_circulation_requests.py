@@ -5,6 +5,7 @@ import pytest
 
 from app.models.circulation import CirculationRequest
 from app.models.identity import AppUser
+from app.core.config import get_settings
 from app.services.circulation_errors import CirculationError
 from app.services.circulation_requests import (
     begin_request,
@@ -100,3 +101,32 @@ def test_stale_in_progress_becomes_unknown(db):
     db.flush()
     mark_stale_unknown(db, row, timeout_seconds=15.0)
     assert row.status == "unknown"
+
+
+def test_stale_in_progress_begin_request_commits_unknown(db):
+    request_id = uuid.uuid4()
+    row = begin_request(
+        db,
+        request_id=request_id,
+        user_id=None,
+        action="renew",
+        patron_id=5,
+    )
+    db.commit()
+    timeout = get_settings().koha_api_timeout
+    row.updated_at = datetime.now(timezone.utc) - timedelta(seconds=timeout + 31)
+    db.commit()
+    with pytest.raises(CirculationError) as exc:
+        begin_request(
+            db,
+            request_id=request_id,
+            user_id=None,
+            action="renew",
+            patron_id=5,
+        )
+    assert exc.value.code == "outcome_unknown"
+    assert exc.value.status_code == 409
+    assert str(exc.value) == "The outcome is unknown. Verify before trying again."
+    reloaded = load_request(db, request_id)
+    assert reloaded is not None
+    assert reloaded.status == "unknown"
