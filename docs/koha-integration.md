@@ -46,6 +46,18 @@ year-field: copyright_date
 
 Search fields remain `keyword`, `title`, `author`, `isbn`, and `barcode` because `title`, `author`, and `isbn` are present on the sample record.
 
+## Patrons
+
+Patron records stay in Koha. ULMS does not mirror patrons in PostgreSQL.
+
+The browser calls ULMS only: `/api/v1/patrons` for search, detail, create, and update; `/api/v1/patrons/summary` for the directory counts; `/api/v1/patrons/{id}/checkouts` and `/api/v1/patrons/{id}/holds` for activity; `/api/v1/patrons/{id}/account` for the balance shown on a patron; and `/api/v1/patrons/options` for library and category pick lists. The API server calls the Koha staff REST API at `GET/POST /patrons`, `GET/PUT /patrons/{id}`, `GET /patrons/{id}/account`, `GET /patrons/{id}/checkouts`, `GET /patrons/{id}/holds`, `GET /patron_categories`, and `GET /libraries`. Patron list requests send `x-koha-embed: checkouts+count,overdues+count`, and Koha returns `checkouts_count` and `overdues_count`; loan title enrichment uses `x-koha-embed: item.biblio`.
+
+Status filters do not send Koha’s computed `expired` or `restricted` fields. Expired means `expiry_date` is before today in Asia/Manila. Restricted means `debarred` is today or later. Active means the card is not expired and not restricted. Koha search cannot count patrons by account balance, so the outstanding-fines total stays unavailable. A single patron’s balance comes from `GET /patrons/{id}/account`.
+
+Patron delete, fine payments, extended attributes, password changes, and the public patron routes are unused.
+
+On 2026-11-19 the configured staff host’s OpenAPI document identified Koha `25.06.00`. That text records what the host reported on that date; ULMS does not hardcode a Koha version at runtime.
+
 ## Related docs
 
 - `plan/plan.md` — product scope

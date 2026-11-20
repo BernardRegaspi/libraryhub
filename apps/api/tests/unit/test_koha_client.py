@@ -3,7 +3,12 @@ import logging
 import httpx
 
 from app.integrations.koha.client import KohaClient, api_root
-from app.integrations.koha.exceptions import KohaAuthError, KohaTimeoutError
+from app.integrations.koha.exceptions import (
+    KohaAuthError,
+    KohaRequestError,
+    KohaResponseError,
+    KohaTimeoutError,
+)
 
 
 class Settings:
@@ -104,6 +109,77 @@ def test_list_items_timeout_returns_unknown_without_fallback():
     assert items is None
     assert checked_at is None
     assert calls["per_biblio"] == 0
+
+
+def test_patron_write_keeps_error_field_names_and_hides_the_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.method == "POST" and request.url.path.endswith("/patrons"):
+            assert request.headers.get("x-confirm-not-duplicate") == "1"
+            assert "secret-name" not in request.content.decode()
+            return httpx.Response(
+                409,
+                json={"errors": [{"message": "secret-name already exists", "path": "/body/cardnumber"}]},
+            )
+        if request.method == "PUT":
+            return httpx.Response(400, json={"errors": [{"path": "/body/surname"}]})
+        raise AssertionError(request.method + " " + request.url.path)
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    try:
+        client.create_patron({"surname": "Cruz", "library_id": "CPL", "category_id": "ST"}, confirm_duplicate=True)
+    except KohaRequestError as exc:
+        assert exc.status_code == 409
+        assert exc.fields == ["cardnumber"]
+        assert "secret-name" not in str(exc)
+    else:
+        raise AssertionError("expected KohaRequestError")
+    try:
+        client.update_patron(4, {"surname": "Cruz"})
+    except KohaRequestError as exc:
+        assert exc.status_code == 400
+        assert exc.fields == ["surname"]
+        assert "x-confirm-not-duplicate" not in str(exc)
+    else:
+        raise AssertionError("expected KohaRequestError")
+
+
+def test_patron_reads_send_embeds_and_a_plain_500_stays_a_response_error():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        seen.append((request.method, request.url.path, request.headers.get("x-koha-embed")))
+        if request.url.path.endswith("/patrons") and request.method == "GET":
+            return httpx.Response(200, json=[{"patron_id": 4}], headers={"X-Total-Count": "1"})
+        if request.url.path.endswith("/checkouts"):
+            return httpx.Response(200, json=[{"checkout_id": 1}])
+        if request.url.path.endswith("/holds"):
+            return httpx.Response(200, json=[])
+        if request.url.path.endswith("/patron_categories"):
+            return httpx.Response(200, json=[{"patron_category_id": "ST", "name": "Student"}])
+        return httpx.Response(500, json={"error": "secret-body"})
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    rows, headers = client.list_patrons({"_per_page": "1"})
+    assert rows == [{"patron_id": 4}]
+    assert headers["X-Total-Count"] == "1"
+    assert client.list_checkouts(4) == [{"checkout_id": 1}]
+    assert client.list_holds(4) == []
+    assert client.list_patron_categories()[0]["patron_category_id"] == "ST"
+    try:
+        client.get_patron(4)
+    except KohaResponseError as exc:
+        assert type(exc) is KohaResponseError
+        assert "secret-body" not in str(exc)
+    else:
+        raise AssertionError("expected KohaResponseError")
+    embeds = {path: embed for _method, path, embed in seen}
+    assert embeds["/api/v1/patrons"] == "checkouts+count,overdues+count"
+    assert embeds["/api/v1/patrons/4/checkouts"] == "item.biblio"
+    assert embeds["/api/v1/patrons/4/holds"] == "biblio"
 
 
 def test_timeout_is_typed():

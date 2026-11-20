@@ -21,3 +21,10 @@ class KohaAuthError(KohaError):
 
 class KohaResponseError(KohaError):
     pass
+
+
+class KohaRequestError(KohaResponseError):
+    def __init__(self, status_code: int, fields: list[str]) -> None:
+        super().__init__()
+        self.status_code = status_code
+        self.fields = fields
