@@ -162,6 +162,41 @@ def test_activity_failure_is_unavailable_and_success_keeps_an_empty_list():
     assert holds == {"status": "ok", "items": []}
 
 
+def test_patron_holds_keeps_holds_when_library_names_fail():
+    hold_row = {
+        "hold_id": 5,
+        "status": "T",
+        "biblio_id": 12,
+        "pickup_library_id": "CPL",
+    }
+
+    class HoldsClient:
+        def list_holds(self, patron_id):
+            assert patron_id == 4
+            return [hold_row]
+
+        def library_names(self):
+            raise KohaResponseError()
+
+    result = patron_holds(HoldsClient(), 4)
+    assert result == {
+        "status": "ok",
+        "items": [
+            {
+                "hold_id": 5,
+                "status": "T",
+                "hold_date": None,
+                "waiting_date": None,
+                "expiration_date": None,
+                "pickup_library_id": "CPL",
+                "pickup_library_name": None,
+                "biblio_id": 12,
+                "title": None,
+            }
+        ],
+    }
+
+
 def test_detail_audits_without_field_values(db):
     from app.models.identity import AuditLog
 
