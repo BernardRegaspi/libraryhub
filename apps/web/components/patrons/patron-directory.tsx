@@ -32,6 +32,7 @@ import {
   serializePatronSearch,
   type PatronSearchState,
 } from "@/lib/patrons/search-params";
+import { PatronFormDialog } from "@/components/patrons/patron-form-dialog";
 import type {
   PatronDirectoryItem,
   PatronOptionsResponse,
@@ -197,13 +198,18 @@ function PatronRow({
 
 export type PatronDirectoryProps = {
   canUpdate: boolean;
+  canSensitive: boolean;
 };
 
-export function PatronDirectory({ canUpdate }: PatronDirectoryProps) {
+export function PatronDirectory({
+  canUpdate,
+  canSensitive,
+}: PatronDirectoryProps) {
   const router = useRouter();
   const urlParams = useSearchParams();
   const state = parsePatronSearch(urlParams);
   const [draftQ, setDraftQ] = useState(state.q);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     setDraftQ(state.q);
@@ -275,7 +281,9 @@ export function PatronDirectory({ canUpdate }: PatronDirectoryProps) {
         hideModuleSentence
         actions={
           canUpdate ? (
-            <Button type="button">Add patron</Button>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              Add patron
+            </Button>
           ) : undefined
         }
       />
@@ -481,6 +489,15 @@ export function PatronDirectory({ canUpdate }: PatronDirectoryProps) {
           />
         ) : null}
       </div>
+
+      {canUpdate ? (
+        <PatronFormDialog
+          mode="create"
+          canSensitive={canSensitive}
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+        />
+      ) : null}
     </>
   );
 }

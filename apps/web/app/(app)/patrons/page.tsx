@@ -13,10 +13,14 @@ export default async function PatronsPage() {
   }
 
   const canUpdate = gate.me.permissions.includes("patrons.update");
+  const canSensitive = gate.me.permissions.includes("patrons.sensitive.view");
 
   return (
     <Suspense fallback={null}>
-      <PatronDirectory canUpdate={canUpdate} />
+      <PatronDirectory
+        canUpdate={canUpdate}
+        canSensitive={canSensitive}
+      />
     </Suspense>
   );
 }

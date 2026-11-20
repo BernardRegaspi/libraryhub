@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchApi } from "@/lib/api";
 import { displayName, initials, statusBadges } from "@/lib/patrons/display";
+import { PatronFormDialog } from "@/components/patrons/patron-form-dialog";
 import type {
   PatronCheckoutItem,
   PatronCheckoutsResponse,
@@ -121,6 +123,7 @@ export function PatronDetailView({
   canUpdate,
   canSensitive,
 }: PatronDetailViewProps) {
+  const [editOpen, setEditOpen] = useState(false);
   const patronQuery = useQuery({
     queryKey: ["patrons", patronId],
     queryFn: () => fetchApi<PatronDetail>(`/patrons/${patronId}`),
@@ -224,7 +227,11 @@ export function PatronDetailView({
           Back to patrons
         </Button>
         {canUpdate ? (
-          <Button type="button" variant="outline">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditOpen(true)}
+          >
             Edit
           </Button>
         ) : null}
@@ -526,6 +533,17 @@ export function PatronDetailView({
           </div>
         ) : null}
       </SectionCard>
+
+      {canUpdate ? (
+        <PatronFormDialog
+          mode="edit"
+          patronId={patron.patron_id}
+          initial={patron}
+          canSensitive={canSensitive}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      ) : null}
     </div>
   );
 }
