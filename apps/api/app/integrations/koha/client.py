@@ -167,7 +167,7 @@ class KohaClient:
         body, headers = self.get_json(
             "/patrons",
             params,
-            extra_headers={"x-koha-embed": "checkouts_count,overdues_count"},
+            extra_headers={"x-koha-embed": "checkouts+count,overdues+count"},
         )
         if not isinstance(body, list):
             raise KohaResponseError
@@ -195,7 +195,7 @@ class KohaClient:
     def list_checkouts(self, patron_id: int) -> list[dict]:
         body, _headers = self.get_json(
             f"/patrons/{patron_id}/checkouts",
-            extra_headers={"x-koha-embed": "item,biblio"},
+            extra_headers={"x-koha-embed": "item.biblio"},
         )
         if not isinstance(body, list):
             raise KohaResponseError

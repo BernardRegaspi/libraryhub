@@ -50,7 +50,7 @@ Search fields remain `keyword`, `title`, `author`, `isbn`, and `barcode` because
 
 Patron records stay in Koha. ULMS does not mirror patrons in PostgreSQL.
 
-The browser calls ULMS only: `/api/v1/patrons` for search, detail, create, and update; `/api/v1/patrons/{id}/checkouts` and `/api/v1/patrons/{id}/holds` for activity; and `/api/v1/patrons/options` for library and category pick lists. The API server calls the Koha staff REST API at `GET/POST /patrons`, `GET/PUT /patrons/{id}`, `GET /patrons/{id}/checkouts`, `GET /patrons/{id}/holds`, `GET /patron_categories`, and `GET /libraries`.
+The browser calls ULMS only: `/api/v1/patrons` for search, detail, create, and update; `/api/v1/patrons/{id}/checkouts` and `/api/v1/patrons/{id}/holds` for activity; and `/api/v1/patrons/options` for library and category pick lists. The API server calls the Koha staff REST API at `GET/POST /patrons`, `GET/PUT /patrons/{id}`, `GET /patrons/{id}/checkouts`, `GET /patrons/{id}/holds`, `GET /patron_categories`, and `GET /libraries`. Patron list requests send `x-koha-embed: checkouts+count,overdues+count`, and Koha returns `checkouts_count` and `overdues_count`; loan title enrichment uses `x-koha-embed: item.biblio`.
 
 Patron delete, fines, extended attributes, password changes, and the public patron routes are unused.
 

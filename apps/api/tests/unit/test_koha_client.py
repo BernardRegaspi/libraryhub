@@ -177,8 +177,8 @@ def test_patron_reads_send_embeds_and_a_plain_500_stays_a_response_error():
     else:
         raise AssertionError("expected KohaResponseError")
     embeds = {path: embed for _method, path, embed in seen}
-    assert embeds["/api/v1/patrons"] == "checkouts_count,overdues_count"
-    assert embeds["/api/v1/patrons/4/checkouts"] == "item,biblio"
+    assert embeds["/api/v1/patrons"] == "checkouts+count,overdues+count"
+    assert embeds["/api/v1/patrons/4/checkouts"] == "item.biblio"
     assert embeds["/api/v1/patrons/4/holds"] == "biblio"
 
 
