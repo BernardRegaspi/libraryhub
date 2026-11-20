@@ -10,6 +10,7 @@ from app.integrations.koha.exceptions import (
     KohaConnectionError,
     KohaError,
     KohaNotFound,
+    KohaRequestError,
     KohaResponseError,
     KohaTimeoutError,
 )
@@ -82,23 +83,138 @@ class KohaClient:
         params: dict | None = None,
         accept: str = "application/json",
         *,
+        extra_headers: dict | None = None,
         _retry: bool = True,
     ) -> tuple[object, httpx.Headers]:
         with self._http() as client:
             token = self._bearer(client)
+            headers = {"Authorization": f"Bearer {token}", "Accept": accept}
+            if extra_headers:
+                headers.update(extra_headers)
             response = self._send(
                 client,
                 "GET",
                 f"{api_root(self._settings.koha_base_url)}{path}",
                 path,
                 params=params,
-                headers={"Authorization": f"Bearer {token}", "Accept": accept},
+                headers=headers,
             )
             if response.status_code == 401 and _retry:
                 self._token = None
             else:
                 return self._interpret(response)
-        return self.get_json(path, params, accept, _retry=False)
+        return self.get_json(path, params, accept, extra_headers=extra_headers, _retry=False)
+
+    def post_json(
+        self,
+        path: str,
+        body: object,
+        extra_headers: dict | None = None,
+        *,
+        _retry: bool = True,
+    ) -> tuple[object, httpx.Headers]:
+        with self._http() as client:
+            token = self._bearer(client)
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+            if extra_headers:
+                headers.update(extra_headers)
+            response = self._send(
+                client,
+                "POST",
+                f"{api_root(self._settings.koha_base_url)}{path}",
+                path,
+                content=json.dumps(body),
+                headers=headers,
+            )
+            if response.status_code == 401 and _retry:
+                self._token = None
+            else:
+                return self._interpret(response)
+        return self.post_json(path, body, extra_headers, _retry=False)
+
+    def put_json(
+        self,
+        path: str,
+        body: object,
+        *,
+        _retry: bool = True,
+    ) -> tuple[object, httpx.Headers]:
+        with self._http() as client:
+            token = self._bearer(client)
+            response = self._send(
+                client,
+                "PUT",
+                f"{api_root(self._settings.koha_base_url)}{path}",
+                path,
+                content=json.dumps(body),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+            )
+            if response.status_code == 401 and _retry:
+                self._token = None
+            else:
+                return self._interpret(response)
+        return self.put_json(path, body, _retry=False)
+
+    def list_patrons(self, params: dict) -> tuple[list[dict], httpx.Headers]:
+        body, headers = self.get_json(
+            "/patrons",
+            params,
+            extra_headers={"x-koha-embed": "checkouts_count,overdues_count"},
+        )
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)], headers
+
+    def get_patron(self, patron_id: int) -> dict:
+        body, _headers = self.get_json(f"/patrons/{patron_id}")
+        if not isinstance(body, dict):
+            raise KohaResponseError
+        return body
+
+    def create_patron(self, body: dict, *, confirm_duplicate: bool) -> dict:
+        extra_headers = {"x-confirm-not-duplicate": "1"} if confirm_duplicate else None
+        result, _headers = self.post_json("/patrons", body, extra_headers=extra_headers)
+        if not isinstance(result, dict):
+            raise KohaResponseError
+        return result
+
+    def update_patron(self, patron_id: int, body: dict) -> dict:
+        result, _headers = self.put_json(f"/patrons/{patron_id}", body)
+        if not isinstance(result, dict):
+            raise KohaResponseError
+        return result
+
+    def list_checkouts(self, patron_id: int) -> list[dict]:
+        body, _headers = self.get_json(
+            f"/patrons/{patron_id}/checkouts",
+            extra_headers={"x-koha-embed": "item,biblio"},
+        )
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
+
+    def list_holds(self, patron_id: int) -> list[dict]:
+        body, _headers = self.get_json(
+            f"/patrons/{patron_id}/holds",
+            extra_headers={"x-koha-embed": "biblio"},
+        )
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
+
+    def list_patron_categories(self) -> list[dict]:
+        body, _headers = self.get_json("/patron_categories")
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
 
     def get_bytes(self, url: str) -> tuple[bytes, str]:
         with self._http() as client:
@@ -192,12 +308,33 @@ class KohaClient:
         setattr(self, slot, (now + _CACHE_SECONDS, names))
         return names
 
+    def _error_fields(self, response: httpx.Response) -> list[str] | None:
+        content_type = response.headers.get("content-type", "")
+        if "json" not in content_type:
+            return None
+        try:
+            body = response.json()
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(body, dict) or not isinstance(body.get("errors"), list):
+            return None
+        fields: list[str] = []
+        for item in body["errors"]:
+            if isinstance(item, dict) and isinstance(item.get("path"), str):
+                fields.append(item["path"].rsplit("/", 1)[-1])
+        return fields
+
     def _interpret(self, response: httpx.Response) -> tuple[object, httpx.Headers]:
         if response.status_code == 404:
             raise KohaNotFound
         if response.status_code == 401:
             raise KohaAuthError
         if response.status_code >= 400:
+            fields = self._error_fields(response)
+            if fields is not None:
+                raise KohaRequestError(response.status_code, fields)
+            if response.status_code in (400, 409):
+                raise KohaRequestError(response.status_code, [])
             raise KohaResponseError
         content_type = response.headers.get("content-type", "")
         if "json" in content_type or "marc-in-json" in content_type:
