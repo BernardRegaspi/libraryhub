@@ -210,6 +210,7 @@ def test_detail_audits_without_field_values(db):
     assert detail_q.count() == before + 1
     row = detail_q.order_by(AuditLog.created_at.desc()).first()
     assert row is not None
+    assert row.entity_id == "4"
     assert row.details == {"sensitive": False}
     assert "ada@usant.edu.ph" not in str(row.details)
 
@@ -253,6 +254,7 @@ def test_create_sends_required_fields_and_audits_names(db):
     assert create_q.count() == before + 1
     audit = create_q.order_by(AuditLog.created_at.desc()).first()
     assert audit is not None
+    assert audit.entity_id == "8"
     assert audit.details["fields"] == ["surname", "library_id", "category_id", "email"]
     assert "ada@usant.edu.ph" not in str(audit.details)
 
