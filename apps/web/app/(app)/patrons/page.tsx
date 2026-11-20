@@ -1,6 +1,9 @@
 export const instant = false;
 
-import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
+import { Suspense } from "react";
+
+import { PatronDirectory } from "@/components/patrons/patron-directory";
+import { AccessDenied } from "@/components/layout/module-frame";
 import { gatePage } from "@/lib/auth/session";
 
 export default async function PatronsPage() {
@@ -9,11 +12,11 @@ export default async function PatronsPage() {
     return <AccessDenied roleName={gate.roleName} />;
   }
 
+  const canUpdate = gate.me.permissions.includes("patrons.update");
+
   return (
-    <ModuleFrame
-      eyebrow="Library"
-      title="Patron lookup"
-      description="Search permitted patron fields from Koha. Sensitive fields are masked. Ambiguous matches are shown for manual review and are never auto-merged."
-    />
+    <Suspense fallback={null}>
+      <PatronDirectory canUpdate={canUpdate} />
+    </Suspense>
   );
 }
