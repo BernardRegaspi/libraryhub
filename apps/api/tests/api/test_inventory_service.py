@@ -17,10 +17,12 @@ from app.services.inventory import (
     InventoryError,
     cancel_session,
     create_session,
+    finish_session,
     get_session,
     list_scans,
     list_sessions,
     record_scan,
+    resume_session,
     start_session,
 )
 
@@ -864,3 +866,83 @@ def test_list_scans_invalid_search_and_department(db):
             params=ScanListParams(),
         )
     assert exc.value.code == "not_found"
+
+
+def test_finish_and_resume_session(db):
+    user, department_id = _user_and_department(db)
+    started, session_id = _started_session(db, user, department_id)
+
+    finished = finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    assert finished["status"] == "in_review"
+    finish_audit = (
+        db.query(AuditLog)
+        .filter_by(action="inventory.session.finish", entity_id=str(session_id))
+        .one()
+    )
+    assert finish_audit.module == "inventory"
+    assert finish_audit.details["reference"] == started["reference"]
+
+    again = None
+    again_id = None
+    for status_name in ("draft", "cancelled", "in_review"):
+        if status_name == "draft":
+            other = _create_draft(db, user, department_id, "Still a draft")
+            target = UUID(other["id"])
+        elif status_name == "cancelled":
+            cancel_session(
+                db,
+                user_id=user.id,
+                department_id=department_id,
+                session_id=session_id,
+            )
+            target = session_id
+        else:
+            again, again_id = _started_session(db, user, department_id)
+            finish_session(
+                db,
+                user_id=user.id,
+                department_id=department_id,
+                session_id=again_id,
+            )
+            target = again_id
+        with pytest.raises(InventoryError) as exc:
+            finish_session(
+                db,
+                user_id=user.id,
+                department_id=department_id,
+                session_id=target,
+            )
+        assert exc.value.status_code == 409
+        assert exc.value.code == "session_not_scanning"
+        assert exc.value.message == "Only a scanning session can be finished."
+        assert db.get(InventorySession, target).status == status_name
+
+    resumed = resume_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=again_id,
+    )
+    assert resumed["status"] == "in_progress"
+    resume_audit = (
+        db.query(AuditLog)
+        .filter_by(action="inventory.session.resume", entity_id=str(again_id))
+        .one()
+    )
+    assert resume_audit.details["reference"] == again["reference"]
+
+    with pytest.raises(InventoryError) as exc:
+        resume_session(
+            db,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=again_id,
+        )
+    assert exc.value.status_code == 409
+    assert exc.value.code == "session_not_in_review"
+    assert exc.value.message == "Only a session in review can return to scanning."

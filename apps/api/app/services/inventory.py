@@ -50,6 +50,16 @@ _INVALID_SEARCH = (422, "invalid_search", "That search is not valid.")
 _SESSION_NOT_DRAFT = (409, "session_not_draft", "Only a draft session can be started.")
 _SESSION_CANCELLED = (409, "session_cancelled", "This session is already cancelled.")
 _SESSION_NOT_STARTED = (409, "session_not_started", "Start the session before scanning.")
+_SESSION_NOT_SCANNING = (
+    409,
+    "session_not_scanning",
+    "Only a scanning session can be finished.",
+)
+_SESSION_NOT_IN_REVIEW = (
+    409,
+    "session_not_in_review",
+    "Only a session in review can return to scanning.",
+)
 _SESSION_CANCELLED_SCAN = (409, "session_cancelled", "This session is cancelled.")
 _SCAN_TIMEOUT = (
     504,
@@ -66,7 +76,7 @@ _SCAN_AMBIGUOUS = (
     "inventory_ambiguous",
     "Koha returned an item record this scan cannot use. The scan was not saved.",
 )
-_STATUSES = frozenset({"draft", "in_progress", "cancelled"})
+_STATUSES = frozenset({"draft", "in_progress", "cancelled", "in_review"})
 _SCAN_OUTCOMES = frozenset(
     {
         "verified",
@@ -383,6 +393,58 @@ def cancel_session(
         AuditLog(
             user_id=user_id,
             action="inventory.session.cancel",
+            module="inventory",
+            entity_type="inventory_session",
+            entity_id=str(row.id),
+            details={"reference": row.reference},
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return _session_payload(db, row)
+
+
+def finish_session(
+    db: Session,
+    *,
+    user_id: UUID,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    row = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if row.status != "in_progress":
+        _raise(*_SESSION_NOT_SCANNING)
+    row.status = "in_review"
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.session.finish",
+            module="inventory",
+            entity_type="inventory_session",
+            entity_id=str(row.id),
+            details={"reference": row.reference},
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return _session_payload(db, row)
+
+
+def resume_session(
+    db: Session,
+    *,
+    user_id: UUID,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    row = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if row.status != "in_review":
+        _raise(*_SESSION_NOT_IN_REVIEW)
+    row.status = "in_progress"
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.session.resume",
             module="inventory",
             entity_type="inventory_session",
             entity_id=str(row.id),
