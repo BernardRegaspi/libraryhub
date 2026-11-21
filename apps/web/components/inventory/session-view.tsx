@@ -650,6 +650,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "audit"],
+      });
     },
     [queryClient, refreshPendingCount, sessionId],
   );
