@@ -32,7 +32,7 @@ import type {
 } from "@/lib/inventory/types";
 
 const INVENTORY_DESCRIPTION =
-  "Scan a Koha library, or one shelving location, and keep a record of each barcode.";
+  "Plan, scan, and review shelf checks against Koha item records. Item status changes stay in Koha.";
 
 function buildSessionsApiQuery(state: InventorySearchState): string {
   const params = new URLSearchParams();
@@ -56,6 +56,9 @@ function statusLabel(value: InventorySearchState["status"]): string {
   if (value === "in_progress") {
     return "In progress";
   }
+  if (value === "in_review") {
+    return "In review";
+  }
   if (value === "cancelled") {
     return "Cancelled";
   }
@@ -68,6 +71,9 @@ function sessionStatusLabel(status: InventorySessionStatus): string {
   }
   if (status === "in_progress") {
     return "In progress";
+  }
+  if (status === "in_review") {
+    return "In review";
   }
   return "Cancelled";
 }
@@ -215,16 +221,17 @@ export function SessionList() {
     <>
       <ModuleFrame
         eyebrow="Library"
-        title="Inventory"
+        title="Inventory & Stocktaking"
         description={INVENTORY_DESCRIPTION}
         hideModuleSentence
         actions={
           <Button
             type="button"
             className="min-h-11"
+            nativeButton={false}
             render={<Link href="/inventory/new" />}
           >
-            New session
+            New stocktake
           </Button>
         }
       />
@@ -263,6 +270,7 @@ export function SessionList() {
                   <SelectItem value="">Any status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="in_review">In review</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>

@@ -25,7 +25,7 @@ type InventoryLibrariesResponse = {
 };
 
 const INVENTORY_DESCRIPTION =
-  "Scan a Koha library, or one shelving location, and keep a record of each barcode.";
+  "Plan, scan, and review shelf checks against Koha item records. Item status changes stay in Koha.";
 
 const LOCATION_HINT =
   "Leave blank for the whole library. The code must match Koha exactly.";
@@ -89,7 +89,7 @@ export function SessionForm() {
     <>
       <ModuleFrame
         eyebrow="Library"
-        title="Inventory"
+        title="Inventory & Stocktaking"
         description={INVENTORY_DESCRIPTION}
         hideModuleSentence
       />
@@ -199,6 +199,7 @@ export function SessionForm() {
               type="button"
               variant="outline"
               className="min-h-11 w-full sm:w-auto"
+              nativeButton={false}
               render={<Link href="/inventory" />}
             >
               Back to sessions

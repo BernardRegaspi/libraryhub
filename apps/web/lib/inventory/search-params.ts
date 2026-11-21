@@ -1,6 +1,6 @@
 export type InventorySearchState = {
   q: string;
-  status: "" | "draft" | "in_progress" | "cancelled";
+  status: "" | "draft" | "in_progress" | "in_review" | "cancelled";
   page: number;
   sort: "created_at" | "reference" | "name" | "status";
   direction: "asc" | "desc";
@@ -17,6 +17,7 @@ const STATUS_VALUES = new Set<InventorySearchState["status"]>([
   "",
   "draft",
   "in_progress",
+  "in_review",
   "cancelled",
 ]);
 

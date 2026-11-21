@@ -13,7 +13,11 @@ export type InventorySessionCounters = {
   remaining: number;
 };
 
-export type InventorySessionStatus = "draft" | "in_progress" | "cancelled";
+export type InventorySessionStatus =
+  | "draft"
+  | "in_progress"
+  | "in_review"
+  | "cancelled";
 
 export type InventorySession = {
   id: string;
