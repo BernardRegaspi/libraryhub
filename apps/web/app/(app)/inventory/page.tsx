@@ -16,7 +16,7 @@ import {
 import { gatePage } from "@/lib/auth/session";
 
 const INVENTORY_DESCRIPTION =
-  "Scan a Koha library, or one shelving location, and keep a record of each barcode.";
+  "Plan, scan, and review shelf checks against Koha item records. Item status changes stay in Koha.";
 
 export default async function InventoryPage() {
   const gate = await gatePage("inventory.view");
@@ -32,7 +32,7 @@ export default async function InventoryPage() {
       <>
         <ModuleFrame
           eyebrow="Library"
-          title="Inventory"
+          title="Inventory & Stocktaking"
           description={INVENTORY_DESCRIPTION}
           hideModuleSentence
         />
