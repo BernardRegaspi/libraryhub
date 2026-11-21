@@ -11,7 +11,7 @@ from app.integrations.koha.exceptions import (
     KohaTimeoutError,
 )
 from app.models.identity import AuditLog, LibraryDepartment, UserRoleAssignment
-from app.models.inventory import InventoryScan, InventorySession
+from app.models.inventory import InventoryReviewDecision, InventoryScan, InventorySession
 from app.schemas.inventory import ScanListParams, SessionListParams
 from app.services.inventory import (
     InventoryError,
@@ -23,6 +23,7 @@ from app.services.inventory import (
     list_sessions,
     record_scan,
     resume_session,
+    save_decision,
     start_session,
 )
 
@@ -1072,3 +1073,223 @@ def test_scan_rejected_during_review_and_accepted_after_resume(db):
         barcode="NOSUCHBC21",
     )
     assert saved["scan"]["outcome"] == "not_found"
+
+
+def test_save_decision_only_for_an_exception_during_review(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha(items_by_barcode={"ITEM-101": [_AVAILABLE_ITEM], "GONE": []})
+    verified = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="ITEM-101",
+    )
+    missing = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    duplicate = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    scan_id = UUID(missing["scan"]["id"])
+
+    with pytest.raises(InventoryError) as exc:
+        save_decision(
+            db,
+            user_id=user.id,
+            display_name=user.display_name,
+            department_id=department_id,
+            session_id=session_id,
+            scan_id=UUID(verified["scan"]["id"]),
+            action="Search the shelf again",
+            decision=None,
+        )
+    assert exc.value.status_code == 404
+    assert exc.value.message == "That inventory scan was not found."
+
+    _started2, session_id2 = _started_session(db, user, department_id)
+    other_missing = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id2,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    with pytest.raises(InventoryError) as exc:
+        save_decision(
+            db,
+            user_id=user.id,
+            display_name=user.display_name,
+            department_id=department_id,
+            session_id=session_id,
+            scan_id=UUID(other_missing["scan"]["id"]),
+            action="Search the shelf again",
+            decision=None,
+        )
+    assert exc.value.code == "not_found"
+
+    with pytest.raises(InventoryError) as exc:
+        save_decision(
+            db,
+            user_id=user.id,
+            display_name=user.display_name,
+            department_id=department_id,
+            session_id=session_id,
+            scan_id=UUID(duplicate["scan"]["id"]),
+            action="Search the shelf again",
+            decision=None,
+        )
+    assert exc.value.code == "not_found"
+
+    with pytest.raises(InventoryError) as exc:
+        save_decision(
+            db,
+            user_id=user.id,
+            display_name=user.display_name,
+            department_id=department_id,
+            session_id=session_id,
+            scan_id=scan_id,
+            action="Leave it on the shelf",
+            decision=None,
+        )
+    assert exc.value.status_code == 422
+    assert exc.value.code == "validation_error"
+    assert exc.value.message == "That inventory session is not valid."
+    assert exc.value.fields == [{"name": "action", "message": "This value is not valid."}]
+
+    chosen = save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=scan_id,
+        action="Search the shelf again",
+        decision=None,
+    )
+    assert chosen["decision"] is None
+    assert chosen["decided_by"] is None
+    assert chosen["decided_at"] is None
+
+    approved = save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=scan_id,
+        action="Search the shelf again",
+        decision="approved",
+    )
+    assert approved["decided_by"] == "Inv Librarian"
+    assert approved["decided_at"] is not None
+
+    cleared = save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=scan_id,
+        action="Leave the Koha status unchanged",
+        decision=None,
+    )
+    assert cleared["decision"] is None
+    row = db.query(InventoryReviewDecision).filter_by(scan_id=scan_id).one()
+    assert row.decided_by is None
+    assert row.decided_at is None
+
+    decide_audit = (
+        db.query(AuditLog)
+        .filter_by(action="inventory.review.decide", entity_id=str(scan_id))
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    assert decide_audit.details["decision"] is None
+    assert decide_audit.details["barcode"] == "GONE"
+
+    resume_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    with pytest.raises(InventoryError) as exc:
+        save_decision(
+            db,
+            user_id=user.id,
+            display_name=user.display_name,
+            department_id=department_id,
+            session_id=session_id,
+            scan_id=scan_id,
+            action="Search the shelf again",
+            decision="no_action",
+        )
+    assert exc.value.code == "session_not_in_review"
+    assert exc.value.message == "Finish the session before reviewing exceptions."
+    assert db.query(InventoryReviewDecision).filter_by(scan_id=scan_id).one().action == (
+        "Leave the Koha status unchanged"
+    )
+
+
+def test_cancel_from_review_keeps_the_decision(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    missing = record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"GONE": []}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    scan_id = UUID(missing["scan"]["id"])
+    save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=scan_id,
+        action="Search the shelf again",
+        decision="no_action",
+    )
+    cancelled = cancel_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    assert cancelled["status"] == "cancelled"
+    assert db.query(InventoryScan).filter_by(session_id=session_id).count() == 1
+    assert db.query(InventoryReviewDecision).filter_by(scan_id=scan_id).one().decision == "no_action"

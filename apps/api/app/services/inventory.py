@@ -13,10 +13,11 @@ from app.integrations.koha.availability import item_status
 from app.integrations.koha.exceptions import KohaError, KohaResponseError, KohaTimeoutError
 from app.integrations.koha.query import escape_like
 from app.models.identity import AuditLog
-from app.models.inventory import InventoryScan, InventorySession
+from app.models.inventory import InventoryReviewDecision, InventoryScan, InventorySession
 from app.schemas.inventory import ScanListParams, SessionListParams
 from app.services.inventory_classify import classify_primary, display_label, duplicate_message
 from app.services.inventory_counters import summarize_scans
+from app.services.inventory_review import action_allowed
 
 _DEPARTMENT_REQUIRED = (
     409,
@@ -60,6 +61,12 @@ _SESSION_NOT_IN_REVIEW = (
     "session_not_in_review",
     "Only a session in review can return to scanning.",
 )
+_DECISION_NOT_IN_REVIEW = (
+    409,
+    "session_not_in_review",
+    "Finish the session before reviewing exceptions.",
+)
+_SCAN_NOT_FOUND = (404, "not_found", "That inventory scan was not found.")
 _SESSION_CANCELLED_SCAN = (409, "session_cancelled", "This session is cancelled.")
 _SESSION_IN_REVIEW = (
     409,
@@ -459,6 +466,83 @@ def resume_session(
     db.commit()
     db.refresh(row)
     return _session_payload(db, row)
+
+
+def save_decision(
+    db: Session,
+    *,
+    user_id: UUID,
+    display_name: str,
+    department_id: UUID | None,
+    session_id: UUID,
+    scan_id: UUID,
+    action: str,
+    decision: str | None,
+) -> dict[str, Any]:
+    if decision is not None and decision not in ("approved", "no_action"):
+        _validation_failure([{"name": "decision", "message": "This value is not valid."}])
+
+    session = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if session.status != "in_review":
+        _raise(*_DECISION_NOT_IN_REVIEW)
+
+    scan = (
+        db.query(InventoryScan)
+        .filter_by(id=scan_id, session_id=session_id)
+        .one_or_none()
+    )
+    if scan is None or not scan.is_primary or scan.outcome == "verified":
+        _raise(*_SCAN_NOT_FOUND)
+
+    if not action_allowed(scan.outcome, action):
+        _validation_failure([{"name": "action", "message": "This value is not valid."}])
+
+    saved = db.query(InventoryReviewDecision).filter_by(scan_id=scan_id).one_or_none()
+    if saved is None:
+        saved = InventoryReviewDecision(
+            session_id=session_id,
+            scan_id=scan_id,
+            action=action,
+        )
+        db.add(saved)
+    else:
+        saved.session_id = session_id
+        saved.action = action
+
+    if decision is None:
+        saved.decision = None
+        saved.decided_by = None
+        saved.decided_at = None
+    else:
+        now = datetime.now(UTC)
+        saved.decision = decision
+        saved.decided_by = user_id
+        saved.decided_at = now
+
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.review.decide",
+            module="inventory",
+            entity_type="inventory_scan",
+            entity_id=str(scan.id),
+            details={
+                "reference": session.reference,
+                "barcode": scan.barcode,
+                "action": saved.action,
+                "decision": saved.decision,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(saved)
+    return {
+        "scan_id": str(scan.id),
+        "action": saved.action,
+        "decision": saved.decision,
+        "decided_by": display_name if saved.decision is not None else None,
+        "decided_at": _iso(saved.decided_at),
+    }
 
 
 def _normalize_barcode(barcode: str) -> str:
