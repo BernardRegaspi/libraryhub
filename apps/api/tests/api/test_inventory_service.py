@@ -1079,6 +1079,47 @@ def test_scan_rejected_during_review_and_accepted_after_resume(db):
     assert saved["scan"]["outcome"] == "not_found"
 
 
+def test_list_scans_includes_saved_decision(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    missing = record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"GONE": []}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    scan_id = UUID(missing["scan"]["id"])
+    save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=scan_id,
+        action="Search the shelf again",
+        decision=None,
+    )
+    listed = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(),
+    )
+    item = next(i for i in listed["items"] if i["id"] == str(scan_id))
+    assert item["decision"] is not None
+    assert item["decision"]["action"] == "Search the shelf again"
+    assert item["decision"]["decision"] is None
+
+
 def test_save_decision_only_for_an_exception_during_review(db):
     user, department_id = _user_and_department(db)
     _started, session_id = _started_session(db, user, department_id)

@@ -52,6 +52,13 @@ export type InventoryScanOutcome =
   | "other_exception"
   | "duplicate";
 
+export type InventoryScanReviewDecision = {
+  action: string;
+  decision: "approved" | "no_action" | null;
+  decided_by: string | null;
+  decided_at: string | null;
+};
+
 export type InventoryScan = {
   id: string;
   client_scan_id: string;
@@ -73,6 +80,7 @@ export type InventoryScan = {
   koha_status: string | null;
   koha_status_label: string | null;
   scanned_at: string;
+  decision: InventoryScanReviewDecision | null;
 };
 
 export type InventoryScanListResponse = {

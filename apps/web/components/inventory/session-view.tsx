@@ -1320,9 +1320,18 @@ function ExceptionReviewRow({
   controlsEnabled: boolean;
 }) {
   const pairs = actionsFor(scan.outcome);
-  const [selectedAction, setSelectedAction] = useState("");
+  const [selectedAction, setSelectedAction] = useState(
+    () => scan.decision?.action ?? "",
+  );
   const [rowError, setRowError] = useState<string | null>(null);
   const [rowPending, setRowPending] = useState(false);
+
+  useEffect(() => {
+    const action = scan.decision?.action;
+    if (action) {
+      setSelectedAction(action);
+    }
+  }, [scan.id, scan.decision?.action]);
 
   const buttonsDisabled =
     !controlsEnabled || !selectedAction || rowPending;

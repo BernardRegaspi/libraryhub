@@ -705,7 +705,45 @@ def _snapshot_from_item(client, item: dict) -> dict[str, Any]:
     }
 
 
-def _scan_payload(row: InventoryScan) -> dict[str, Any]:
+def _scan_review_decision_payload(
+    saved: InventoryReviewDecision | None,
+    decider: AppUser | None,
+) -> dict[str, Any] | None:
+    if saved is None:
+        return None
+    display_name = decider.display_name if decider is not None else None
+    return {
+        "action": saved.action,
+        "decision": saved.decision,
+        "decided_by": display_name if saved.decision is not None else None,
+        "decided_at": _iso(saved.decided_at),
+    }
+
+
+def _prefetch_review_decisions(
+    db: Session,
+    scan_ids: list[UUID],
+) -> dict[UUID, tuple[InventoryReviewDecision, AppUser | None]]:
+    if not scan_ids:
+        return {}
+    rows = (
+        db.query(InventoryReviewDecision, AppUser)
+        .outerjoin(AppUser, AppUser.id == InventoryReviewDecision.decided_by)
+        .filter(InventoryReviewDecision.scan_id.in_(scan_ids))
+        .all()
+    )
+    return {saved.scan_id: (saved, decider) for saved, decider in rows}
+
+
+def _scan_payload(
+    row: InventoryScan,
+    *,
+    review: tuple[InventoryReviewDecision, AppUser | None] | None = None,
+) -> dict[str, Any]:
+    decision = None
+    if review is not None:
+        saved, decider = review
+        decision = _scan_review_decision_payload(saved, decider)
     return {
         "id": str(row.id),
         "client_scan_id": str(row.client_scan_id),
@@ -727,6 +765,7 @@ def _scan_payload(row: InventoryScan) -> dict[str, Any]:
         "koha_status": row.koha_status,
         "koha_status_label": row.koha_status_label,
         "scanned_at": _iso(row.scanned_at),
+        "decision": decision,
     }
 
 
@@ -1094,9 +1133,10 @@ def list_scans(
     offset = (params.page - 1) * params.per_page
     rows = query.offset(offset).limit(params.per_page).all()
     has_next = params.page * params.per_page < total
+    decisions = _prefetch_review_decisions(db, [row.id for row in rows])
 
     return {
-        "items": [_scan_payload(row) for row in rows],
+        "items": [_scan_payload(row, review=decisions.get(row.id)) for row in rows],
         "page": params.page,
         "per_page": params.per_page,
         "total": total,
