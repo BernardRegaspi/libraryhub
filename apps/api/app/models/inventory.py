@@ -205,7 +205,6 @@ class InventoryReviewDecision(Base):
         UUID(as_uuid=True),
         ForeignKey(f"{_SCHEMA}.inventory_scans.id", ondelete="RESTRICT"),
         nullable=False,
-        unique=True,
     )
     action: Mapped[str] = mapped_column(String(80), nullable=False)
     decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
