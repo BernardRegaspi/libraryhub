@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/catalog/*.test.ts lib/patrons/*.test.ts"
+    "test": "node --test lib/catalog/*.test.ts lib/patrons/*.test.ts lib/inventory/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
