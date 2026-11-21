@@ -62,8 +62,10 @@ export default async function InventorySessionPage({
   }
 
   return (
-    <Suspense fallback={null}>
-      <SessionView sessionId={sessionId} />
-    </Suspense>
+    <div className="min-w-0 flex-1 bg-background">
+      <Suspense fallback={null}>
+        <SessionView sessionId={sessionId} />
+      </Suspense>
+    </div>
   );
 }

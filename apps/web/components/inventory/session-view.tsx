@@ -14,7 +14,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SearchIcon } from "@hugeicons/core-free-icons";
 
-import { ModuleFrame } from "@/components/layout/module-frame";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,10 +39,8 @@ import type {
   InventoryScanOutcome,
   InventorySession,
   InventorySessionCounters,
+  InventorySessionStatus,
 } from "@/lib/inventory/types";
-
-const INVENTORY_DESCRIPTION =
-  "Scan a Koha library, or one shelving location, and keep a record of each barcode.";
 
 const ZERO_COUNT_COPY =
   "Koha returned no items for this library and location. You can still start and record unexpected barcodes.";
@@ -111,6 +108,34 @@ function outcomeBadgeClass(outcome: InventoryScanOutcome): string {
   return "bg-maroon-50 text-maroon-700";
 }
 
+function sessionStatusLabel(status: InventorySessionStatus): string {
+  if (status === "draft") {
+    return "Draft";
+  }
+  if (status === "in_progress") {
+    return "In progress";
+  }
+  if (status === "in_review") {
+    return "In review";
+  }
+  return "Cancelled";
+}
+
+function stepperCurrentIndex(status: InventorySessionStatus): number | null {
+  if (status === "draft") {
+    return 0;
+  }
+  if (status === "in_progress") {
+    return 1;
+  }
+  if (status === "in_review") {
+    return 2;
+  }
+  return null;
+}
+
+const STEPPER_LABELS = ["Plan", "Scan", "Review"] as const;
+
 function buildScansPath(
   sessionId: string,
   q: string,
@@ -142,34 +167,20 @@ function playTone(audioContextRef: React.RefObject<AudioContext | null>, hz: num
   oscillator.stop(ctx.currentTime + 0.12);
 }
 
-function SessionSummary({
-  session,
-  statusNote,
-}: {
-  session: InventorySession;
-  statusNote?: React.ReactNode;
-}) {
+function WorkstationHeader({ session }: { session: InventorySession }) {
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border bg-card px-4 py-5 sm:px-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <header className="flex min-w-0 flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {session.reference}
             <span className="text-muted-foreground"> · </span>
             {session.name}
-          </h2>
-          <p className="mt-2 font-display text-3xl font-semibold text-foreground">
-            {session.expected_count}
-            <span className="ml-2 text-base font-normal text-muted-foreground">
-              expected
-            </span>
-          </p>
+          </h1>
         </div>
-        {statusNote ? (
-          <div className="shrink-0 text-sm font-medium text-foreground">
-            {statusNote}
-          </div>
-        ) : null}
+        <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground">
+          {sessionStatusLabel(session.status)}
+        </span>
       </div>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
@@ -185,32 +196,104 @@ function SessionSummary({
           </dd>
         </div>
       </dl>
-      {session.expected_count === 0 ? (
-        <p className="text-sm text-muted-foreground">{ZERO_COUNT_COPY}</p>
-      ) : null}
+    </header>
+  );
+}
+
+function InventoryStepper({ status }: { status: InventorySessionStatus }) {
+  const currentIndex = stepperCurrentIndex(status);
+
+  return (
+    <ol className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
+      {STEPPER_LABELS.map((label, index) => {
+        const isCurrent = currentIndex === index;
+        return (
+          <li
+            key={label}
+            className={`min-w-0 text-sm ${isCurrent ? "font-semibold text-maroon-700" : "text-muted-foreground"}`}
+          >
+            <span className="tabular-nums">{index + 1}.</span> {label}
+          </li>
+        );
+      })}
+      <li className="min-w-0 md:col-span-1">
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 w-full min-w-0 text-sm"
+          disabled
+        >
+          Export exceptions
+        </Button>
+      </li>
+    </ol>
+  );
+}
+
+function SessionProgress({
+  seen,
+  expectedCount,
+}: {
+  seen: number;
+  expectedCount: number;
+}) {
+  const widthPercent =
+    expectedCount === 0
+      ? 0
+      : Math.min(100, (seen / expectedCount) * 100);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <p className="text-sm text-foreground">
+        {seen} of {expectedCount} expected items seen
+      </p>
+      <div
+        className="h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuenow={seen}
+        aria-valuemin={0}
+        aria-valuemax={expectedCount}
+      >
+        <div
+          className="h-full rounded-full bg-maroon-700 transition-[width]"
+          style={{ width: `${widthPercent}%` }}
+        />
+      </div>
     </div>
   );
 }
 
-function CountsLine({ counters }: { counters: InventorySessionCounters }) {
-  const items: { label: string; value: number }[] = [
-    { label: "Expected", value: counters.expected_count },
-    { label: "Seen", value: counters.seen },
+function CountCardsGrid({
+  session,
+  counters,
+}: {
+  session: InventorySession;
+  counters: InventorySessionCounters;
+}) {
+  const cards = [
+    { label: "Expected", value: session.expected_count },
     { label: "Verified", value: counters.verified },
-    { label: "Needs a look", value: counters.needs_a_look },
-    { label: "Duplicates", value: counters.duplicates },
-    { label: "Remaining", value: counters.remaining },
+    { label: "Not found", value: counters.not_found },
+    { label: "Misplaced", value: counters.misplaced },
+    { label: "Unexpected", value: counters.unexpected },
+    { label: "Damaged", value: counters.damaged },
+    { label: "Withdrawn", value: counters.withdrawn },
   ];
 
   return (
-    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground">
-      {items.map((item) => (
-        <span key={item.label}>
-          <span className="text-muted-foreground">{item.label}</span>{" "}
-          <span className="font-medium tabular-nums">{item.value}</span>
-        </span>
+    <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="min-w-0 rounded-lg border border-border bg-card px-3 py-3 sm:px-4"
+        >
+          <p className="text-xs text-muted-foreground">{card.label}</p>
+          <p className="font-display text-2xl font-semibold tabular-nums text-foreground sm:text-3xl">
+            {card.value}
+          </p>
+        </div>
       ))}
-    </p>
+    </div>
   );
 }
 
@@ -329,7 +412,10 @@ export function SessionView({ sessionId }: SessionViewProps) {
   const scansQuery = useQuery({
     queryKey: ["inventory", "session", sessionId, "scans", scansPath],
     queryFn: () => fetchApi<InventoryScanListResponse>(scansPath),
-    enabled: session?.status === "in_progress" || session?.status === "cancelled",
+    enabled:
+      session?.status === "in_progress" ||
+      session?.status === "in_review" ||
+      session?.status === "cancelled",
   });
 
   const refocusBarcode = useCallback(() => {
@@ -550,6 +636,46 @@ export function SessionView({ sessionId }: SessionViewProps) {
     }
   }
 
+  async function onFinishScanning() {
+    setActionPending(true);
+    setActionError(null);
+    try {
+      await fetchApi<InventorySession>(
+        `/inventory/sessions/${sessionId}/finish`,
+        { method: "POST" },
+      );
+      await sessionQuery.refetch();
+    } catch (caught) {
+      const message =
+        caught instanceof ApiError
+          ? (caught.detail?.message ?? caught.message)
+          : "Could not finish scanning. Try again.";
+      setActionError(message);
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function onBackToScanning() {
+    setActionPending(true);
+    setActionError(null);
+    try {
+      await fetchApi<InventorySession>(
+        `/inventory/sessions/${sessionId}/resume`,
+        { method: "POST" },
+      );
+      await sessionQuery.refetch();
+    } catch (caught) {
+      const message =
+        caught instanceof ApiError
+          ? (caught.detail?.message ?? caught.message)
+          : "Could not return to scanning. Try again.";
+      setActionError(message);
+    } finally {
+      setActionPending(false);
+    }
+  }
+
   async function onConfirmCancel() {
     setActionPending(true);
     setActionError(null);
@@ -578,27 +704,23 @@ export function SessionView({ sessionId }: SessionViewProps) {
   }, [refocusBarcode, session?.status]);
 
   const displayCounters = counters ?? session?.counters;
+  const progressSeen = displayCounters?.seen ?? session?.counters.seen ?? 0;
 
   return (
     <>
-      <ModuleFrame
-        eyebrow="Library"
-        title="Inventory"
-        description={INVENTORY_DESCRIPTION}
-        hideModuleSentence
-        actions={
+      <div className="flex w-full min-w-0 flex-col gap-6 bg-background px-4 pb-8 sm:px-6 lg:px-8">
+        <div className="flex justify-end pt-4">
           <Button
             type="button"
             variant="outline"
             className="min-h-11"
+            nativeButton={false}
             render={<Link href="/inventory" />}
           >
             Back to sessions
           </Button>
-        }
-      />
+        </div>
 
-      <div className="flex w-full min-w-0 flex-col gap-6 px-4 pb-8 sm:px-6 lg:px-8">
         {sessionQuery.isPending ? (
           <Skeleton className="h-40 w-full rounded-lg" />
         ) : sessionQuery.isError ? (
@@ -621,11 +743,25 @@ export function SessionView({ sessionId }: SessionViewProps) {
           </div>
         ) : session ? (
           <>
+            <WorkstationHeader session={session} />
+            <InventoryStepper status={session.status} />
+            <SessionProgress
+              seen={progressSeen}
+              expectedCount={session.expected_count}
+            />
+            {displayCounters ? (
+              <CountCardsGrid session={session} counters={displayCounters} />
+            ) : null}
+
             {session.status === "draft" ? (
               <>
-                <SessionSummary session={session} />
                 {actionError ? (
                   <p className="text-sm text-destructive">{actionError}</p>
+                ) : null}
+                {session.expected_count === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {ZERO_COUNT_COPY}
+                  </p>
                 ) : null}
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
@@ -651,131 +787,166 @@ export function SessionView({ sessionId }: SessionViewProps) {
               </>
             ) : null}
 
-            {session.status === "cancelled" ? (
+            {session.status === "in_progress" ? (
               <>
-                <SessionSummary
-                  session={session}
-                  statusNote="Cancelled"
-                />
-                <ScansPanel
-                  scansQuery={scansQuery}
-                  scanSearchDraft={scanSearchDraft}
-                  onScanSearchChange={setScanSearchDraft}
-                  scanOutcome={scanOutcome}
-                  onScanOutcomeChange={setScanOutcome}
-                />
+                {actionError ? (
+                  <p className="text-sm text-destructive">{actionError}</p>
+                ) : null}
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    type="button"
+                    className="min-h-11"
+                    disabled={actionPending}
+                    onClick={() => {
+                      void onFinishScanning();
+                    }}
+                  >
+                    Finish scanning
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled={actionPending}
+                    onClick={() => setCancelOpen(true)}
+                  >
+                    Cancel session
+                  </Button>
+                </div>
               </>
             ) : null}
 
-            {session.status === "in_progress" ? (
+            {session.status === "in_review" ? (
               <>
-                <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
-                  <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
-                    <form
-                      className="flex min-w-0 flex-col gap-3"
-                      onSubmit={(event: FormEvent) => event.preventDefault()}
-                    >
-                      <Input
-                        ref={barcodeInputRef}
-                        value={barcodeDraft}
-                        onChange={(event) => {
-                          setBarcodeDraft(event.target.value);
-                          if (barcodeError) {
-                            setBarcodeError(null);
-                          }
-                        }}
-                        onKeyDown={onBarcodeKeyDown}
-                        inputMode={inputMode}
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        spellCheck={false}
-                        aria-label="Barcode"
-                        className="min-h-11 font-mono text-base"
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        {SCANNER_HINT}
-                      </p>
-                      {barcodeError ? (
-                        <p className="text-sm text-destructive">{barcodeError}</p>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="min-h-11"
-                          onClick={onTypeBarcode}
-                        >
-                          Type barcode
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="min-h-11"
-                          onClick={toggleSound}
-                        >
-                          {soundOn ? "Sound on" : "Sound off"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="min-h-11"
-                          disabled={actionPending}
-                          onClick={() => setCancelOpen(true)}
-                        >
-                          Cancel session
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
+                {actionError ? (
+                  <p className="text-sm text-destructive">{actionError}</p>
+                ) : null}
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    type="button"
+                    className="min-h-11"
+                    disabled={actionPending}
+                    onClick={() => {
+                      void onBackToScanning();
+                    }}
+                  >
+                    Back to scanning
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    disabled={actionPending}
+                    onClick={() => setCancelOpen(true)}
+                  >
+                    Cancel session
+                  </Button>
+                </div>
+              </>
+            ) : null}
 
-                  <div className="min-w-0 flex flex-col gap-3">
-                    {pendingCount > 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        {WAITING_COPY}{" "}
-                        <span className="font-medium text-foreground">
-                          {pendingCount}
-                        </span>
-                      </p>
+            {session.status === "cancelled" ? (
+              <p className="text-sm font-medium text-foreground">Cancelled</p>
+            ) : null}
+
+            {session.status === "in_progress" ? (
+              <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
+                <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
+                  <form
+                    className="flex min-w-0 flex-col gap-3"
+                    onSubmit={(event: FormEvent) => event.preventDefault()}
+                  >
+                    <Input
+                      ref={barcodeInputRef}
+                      value={barcodeDraft}
+                      onChange={(event) => {
+                        setBarcodeDraft(event.target.value);
+                        if (barcodeError) {
+                          setBarcodeError(null);
+                        }
+                      }}
+                      onKeyDown={onBarcodeKeyDown}
+                      inputMode={inputMode}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      aria-label="Barcode"
+                      className="min-h-11 font-mono text-base"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {SCANNER_HINT}
+                    </p>
+                    {barcodeError ? (
+                      <p className="text-sm text-destructive">{barcodeError}</p>
                     ) : null}
-                    {latestFinished?.kind === "failure" ? (
-                      <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
-                        <p className="font-mono text-sm text-foreground">
-                          {latestFinished.barcode}
-                        </p>
-                        <p className="text-sm text-foreground">
-                          {SCAN_FAILURE_COPY}
-                        </p>
-                        <Button
-                          type="button"
-                          className="min-h-11 self-start"
-                          onClick={() => {
-                            void onRetry(
-                              latestFinished.clientScanId,
-                              latestFinished.barcode,
-                            );
-                          }}
-                        >
-                          Retry
-                        </Button>
-                      </div>
-                    ) : latestFinished?.kind === "scan" ? (
-                      <ScanResultCard scan={latestFinished.scan} />
-                    ) : null}
-                  </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={onTypeBarcode}
+                      >
+                        Type barcode
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={toggleSound}
+                      >
+                        {soundOn ? "Sound on" : "Sound off"}
+                      </Button>
+                    </div>
+                  </form>
                 </div>
 
-                {displayCounters ? (
-                  <CountsLine counters={displayCounters} />
-                ) : null}
+                <div className="min-w-0 flex flex-col gap-3">
+                  {pendingCount > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {WAITING_COPY}{" "}
+                      <span className="font-medium text-foreground">
+                        {pendingCount}
+                      </span>
+                    </p>
+                  ) : null}
+                  {latestFinished?.kind === "failure" ? (
+                    <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
+                      <p className="font-mono text-sm text-foreground">
+                        {latestFinished.barcode}
+                      </p>
+                      <p className="text-sm text-foreground">
+                        {SCAN_FAILURE_COPY}
+                      </p>
+                      <Button
+                        type="button"
+                        className="min-h-11 self-start"
+                        onClick={() => {
+                          void onRetry(
+                            latestFinished.clientScanId,
+                            latestFinished.barcode,
+                          );
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : latestFinished?.kind === "scan" ? (
+                    <ScanResultCard scan={latestFinished.scan} />
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
-                <ScansPanel
-                  scansQuery={scansQuery}
-                  scanSearchDraft={scanSearchDraft}
-                  onScanSearchChange={setScanSearchDraft}
-                  scanOutcome={scanOutcome}
-                  onScanOutcomeChange={setScanOutcome}
-                />
-              </>
+            {session.status === "in_progress" ||
+            session.status === "in_review" ||
+            session.status === "cancelled" ? (
+              <ScansPanel
+                scansQuery={scansQuery}
+                scanSearchDraft={scanSearchDraft}
+                onScanSearchChange={setScanSearchDraft}
+                scanOutcome={scanOutcome}
+                onScanOutcomeChange={setScanOutcome}
+              />
             ) : null}
           </>
         ) : null}
