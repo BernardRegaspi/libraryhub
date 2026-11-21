@@ -58,7 +58,18 @@ Patron delete, fine payments, extended attributes, password changes, and the pub
 
 On 2026-11-19 the configured staff host’s OpenAPI document identified Koha `25.06.00`. That text records what the host reported on that date; ULMS does not hardcode a Koha version at runtime.
 
+## Inventory
+
+Inventory session and scan rows live in PostgreSQL. Koha stays the item authority.
+
+The browser calls ULMS only: `/api/v1/inventory` for sessions and scans. The API reads Koha with `GET /items`. For the Koha item count, requests send a `q` JSON object with `home_library_id` and, when set, `location`, plus `_per_page` 1, and read `X-Total-Count`. For one barcode, requests send `external_id`, `_per_page` 2, and the header `x-koha-embed: biblio`. Library names and item-type labels come from `GET /libraries` and `GET /item_types`. A failed label cache does not drop a scan that already has an item.
+
+This module does not call item update routes.
+
+Design: `docs/superpowers/specs/2026-11-21-inventory-scanning-design.md`.
+
 ## Related docs
 
 - `plan/plan.md` — product scope
 - `docs/superpowers/specs/2026-11-17-catalog-search-design.md` — catalog search design
+- `docs/superpowers/specs/2026-11-21-inventory-scanning-design.md` — inventory scanning design
