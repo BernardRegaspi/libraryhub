@@ -23,6 +23,7 @@ from app.services.inventory import (
     finish_session,
     get_session,
     list_scans,
+    list_session_audit,
     list_sessions,
     record_scan,
     resume_session,
@@ -1425,3 +1426,46 @@ def test_export_exceptions_csv(db):
     assert exc.value.status_code == 409
     assert exc.value.code == "export_not_ready"
     assert exc.value.message == "Export is available after scanning is finished."
+
+
+def test_list_session_audit(db):
+    user, department_id = _user_and_department(db)
+    started, session_id = _started_session(db, user, department_id)
+    record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"GONE": []}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+
+    listed = list_session_audit(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    assert listed["items"][0]["action"] == "inventory.session.finish"
+    assert listed["items"][0]["actor_name"] == "Inv Librarian"
+    assert listed["items"][0]["created_at"]
+    scan_rows = [item for item in listed["items"] if item["action"] == "inventory.scan"]
+    assert scan_rows[0]["details"]["barcode"] == "GONE"
+    assert scan_rows[0]["details"]["reference"] == started["reference"]
+    assert "entity_id" not in scan_rows[0]
+
+    hidden = _create_draft(db, user, _other_department_id(db), "Other department")
+    with pytest.raises(InventoryError) as exc:
+        list_session_audit(
+            db,
+            department_id=department_id,
+            session_id=UUID(hidden["id"]),
+        )
+    assert exc.value.status_code == 404
+    assert exc.value.message == "That inventory session was not found."

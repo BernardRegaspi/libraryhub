@@ -1102,3 +1102,45 @@ def list_scans(
         "total": total,
         "has_next": has_next,
     }
+
+
+def list_session_audit(
+    db: Session,
+    *,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    session = _fetch_session(db, department_id=department_id, session_id=session_id)
+
+    scan_ids = [
+        str(scan_id)
+        for (scan_id,) in db.query(InventoryScan.id)
+        .filter(InventoryScan.session_id == session.id)
+        .all()
+    ]
+
+    entity_filter = AuditLog.entity_id == str(session.id)
+    if scan_ids:
+        entity_filter = or_(entity_filter, AuditLog.entity_id.in_(scan_ids))
+
+    rows = (
+        db.query(AuditLog, AppUser)
+        .outerjoin(AppUser, AuditLog.user_id == AppUser.id)
+        .filter(AuditLog.module == "inventory", entity_filter)
+        .order_by(AuditLog.created_at.desc(), text("audit_logs.ctid DESC"))
+        .limit(40)
+        .all()
+    )
+
+    items = []
+    for audit, actor in rows:
+        items.append(
+            {
+                "action": audit.action,
+                "details": audit.details if audit.details is not None else {},
+                "actor_name": (actor.display_name if actor is not None else None) or "",
+                "created_at": _iso(audit.created_at),
+            }
+        )
+
+    return {"items": items}
