@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool, text
 from app.core.config import get_settings
 from app.models.base import Base
 import app.models.identity  # noqa: F401
+import app.models.inventory  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
