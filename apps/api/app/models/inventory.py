@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,7 +25,7 @@ class InventorySession(Base):
     __tablename__ = "inventory_sessions"
     __table_args__ = (
         CheckConstraint(
-            "status in ('draft', 'in_progress', 'cancelled')",
+            "status in ('draft', 'in_progress', 'in_review', 'cancelled')",
             name="ck_inventory_sessions_status",
         ),
         CheckConstraint(
@@ -171,3 +172,46 @@ class InventoryScan(Base):
         nullable=False,
         server_default=text("now()"),
     )
+
+
+class InventoryReviewDecision(Base):
+    __tablename__ = "inventory_review_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision is null and decided_by is null and decided_at is null) "
+            "or (decision in ('approved', 'no_action') "
+            "and decided_by is not null and decided_at is not null)",
+            name="ck_inventory_review_decisions_decision",
+        ),
+        CheckConstraint(
+            "char_length(action) between 1 and 80",
+            name="ck_inventory_review_decisions_action",
+        ),
+        UniqueConstraint("scan_id", name="uq_inventory_review_decisions_scan_id"),
+        {"schema": _SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_SCHEMA}.inventory_sessions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_SCHEMA}.inventory_scans.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    action: Mapped[str] = mapped_column(String(80), nullable=False)
+    decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_SCHEMA}.app_users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
