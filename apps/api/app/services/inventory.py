@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.integrations.koha.exceptions import KohaError, KohaResponseError, KohaTimeoutError
+from app.integrations.koha.query import escape_like
 from app.models.identity import AuditLog
 from app.models.inventory import InventorySession
+from app.schemas.inventory import SessionListParams
 from app.services.inventory_counters import summarize_scans
 
 _DEPARTMENT_REQUIRED = (
@@ -39,6 +41,19 @@ _COUNT_UNAVAILABLE = (
     "Koha could not count items. Try again.",
 )
 _VALIDATION_MESSAGE = "That inventory session is not valid."
+_LIST_DEPARTMENT_REQUIRED = (409, "department_required", "Choose a department.")
+_NOT_FOUND = (404, "not_found", "That inventory session was not found.")
+_INVALID_SEARCH = (422, "invalid_search", "That search is not valid.")
+_SESSION_NOT_DRAFT = (409, "session_not_draft", "Only a draft session can be started.")
+_SESSION_CANCELLED = (409, "session_cancelled", "This session is already cancelled.")
+_STATUSES = frozenset({"draft", "in_progress", "cancelled"})
+_SORTS = frozenset({"created_at", "reference", "name", "status"})
+_SORT_COLUMNS = {
+    "created_at": InventorySession.created_at,
+    "reference": InventorySession.reference,
+    "name": InventorySession.name,
+    "status": InventorySession.status,
+}
 
 
 class InventoryError(Exception):
@@ -110,6 +125,41 @@ def _session_payload(row: InventorySession) -> dict[str, Any]:
         "created_at": _iso(row.created_at),
         "counters": summarize_scans([], expected_count=expected),
     }
+
+
+def _validate_list_params(params: SessionListParams) -> None:
+    for ch in params.q:
+        if ord(ch) < 32 or ord(ch) == 127:
+            _raise(*_INVALID_SEARCH)
+    q = params.q.strip()
+    params.q = q
+    if q and not (1 <= len(q) <= 80):
+        _raise(*_INVALID_SEARCH)
+    if not (1 <= params.page <= 10000):
+        _raise(*_INVALID_SEARCH)
+    if not (1 <= params.per_page <= 50):
+        _raise(*_INVALID_SEARCH)
+    if params.sort not in _SORTS:
+        _raise(*_INVALID_SEARCH)
+    if params.direction not in ("asc", "desc"):
+        _raise(*_INVALID_SEARCH)
+    status = params.status
+    if status is not None and status != "" and status not in _STATUSES:
+        _raise(*_INVALID_SEARCH)
+    if status == "":
+        params.status = None
+
+
+def _fetch_session(
+    db: Session,
+    *,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> InventorySession:
+    row = db.query(InventorySession).filter_by(id=session_id).one_or_none()
+    if row is None or department_id is None or row.department_id != department_id:
+        _raise(*_NOT_FOUND)
+    return row
 
 
 def _next_reference(db: Session) -> str:
@@ -187,6 +237,120 @@ def create_session(
                 "location": clean_location,
                 "expected_count": expected_count,
             },
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return _session_payload(row)
+
+
+def list_sessions(
+    db: Session,
+    *,
+    department_id: UUID | None,
+    params: SessionListParams,
+) -> dict[str, Any]:
+    if department_id is None:
+        _raise(*_LIST_DEPARTMENT_REQUIRED)
+    _validate_list_params(params)
+
+    query = db.query(InventorySession).filter(InventorySession.department_id == department_id)
+    if params.status:
+        query = query.filter(InventorySession.status == params.status)
+    if params.q:
+        pattern = f"%{escape_like(params.q)}%"
+        query = query.filter(
+            or_(
+                InventorySession.reference.ilike(pattern, escape="\\"),
+                InventorySession.name.ilike(pattern, escape="\\"),
+            )
+        )
+
+    sort_col = _SORT_COLUMNS[params.sort]
+    if params.direction == "desc":
+        query = query.order_by(sort_col.desc())
+    else:
+        query = query.order_by(sort_col.asc())
+
+    total = query.count()
+    offset = (params.page - 1) * params.per_page
+    rows = query.offset(offset).limit(params.per_page).all()
+    has_next = params.page * params.per_page < total
+
+    return {
+        "items": [_session_payload(row) for row in rows],
+        "page": params.page,
+        "per_page": params.per_page,
+        "total": total,
+        "has_next": has_next,
+    }
+
+
+def get_session(
+    db: Session,
+    *,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    row = _fetch_session(db, department_id=department_id, session_id=session_id)
+    return _session_payload(row)
+
+
+def start_session(
+    db: Session,
+    *,
+    user_id: UUID,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    row = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if row.status != "draft":
+        _raise(*_SESSION_NOT_DRAFT)
+
+    now = datetime.now(UTC)
+    row.status = "in_progress"
+    row.started_at = now
+    row.started_by = user_id
+
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.session.start",
+            module="inventory",
+            entity_type="inventory_session",
+            entity_id=str(row.id),
+            details={"reference": row.reference},
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return _session_payload(row)
+
+
+def cancel_session(
+    db: Session,
+    *,
+    user_id: UUID,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> dict[str, Any]:
+    row = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if row.status == "cancelled":
+        _raise(*_SESSION_CANCELLED)
+
+    now = datetime.now(UTC)
+    row.status = "cancelled"
+    row.cancelled_at = now
+    row.cancelled_by = user_id
+
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.session.cancel",
+            module="inventory",
+            entity_type="inventory_session",
+            entity_id=str(row.id),
+            details={"reference": row.reference},
         )
     )
     db.commit()
