@@ -30,8 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, fetchApi } from "@/lib/api";
+import { ApiError, fetchApi, getApiBaseUrl } from "@/lib/api";
+import { actionsFor } from "@/lib/inventory/actions";
 import { createScanQueue } from "@/lib/inventory/queue";
 import type {
   InventoryScan,
@@ -71,6 +73,42 @@ const OUTCOME_FILTER_OPTIONS: { value: InventoryScanOutcome; label: string }[] =
     { value: "other_exception", label: "Other exception" },
     { value: "duplicate", label: "Duplicate" },
   ];
+
+type ScanListFilter =
+  | { kind: "all" }
+  | { kind: "exceptions" }
+  | { kind: "outcome"; outcome: InventoryScanOutcome };
+
+const DEFAULT_SCAN_FILTER: ScanListFilter = { kind: "all" };
+
+const SCAN_FILTER_CHIPS: { label: string; filter: ScanListFilter }[] = [
+  { label: "All", filter: { kind: "all" } },
+  { label: "Exceptions", filter: { kind: "exceptions" } },
+  ...OUTCOME_FILTER_OPTIONS.map((option) => ({
+    label: option.label,
+    filter: { kind: "outcome" as const, outcome: option.value },
+  })),
+];
+
+const NO_EXCEPTIONS_COPY = "No exceptions to review.";
+
+type DecisionResponse = {
+  scan_id: string;
+  action: string;
+  decision: "approved" | "no_action" | null;
+  decided_by: string | null;
+  decided_at: string | null;
+};
+
+function scanFiltersEqual(a: ScanListFilter, b: ScanListFilter): boolean {
+  if (a.kind !== b.kind) {
+    return false;
+  }
+  if (a.kind === "outcome" && b.kind === "outcome") {
+    return a.outcome === b.outcome;
+  }
+  return true;
+}
 
 type ScanRecordResponse = {
   scan: InventoryScan;
@@ -139,17 +177,89 @@ const STEPPER_LABELS = ["Plan", "Scan", "Review"] as const;
 function buildScansPath(
   sessionId: string,
   q: string,
-  outcome: InventoryScanOutcome | "",
+  filter: ScanListFilter,
+  page: number,
 ): string {
   const params = new URLSearchParams();
   params.set("per_page", "20");
+  params.set("page", String(page));
   if (q.trim()) {
     params.set("q", q.trim());
   }
-  if (outcome) {
-    params.set("outcome", outcome);
+  if (filter.kind === "exceptions") {
+    params.set("exceptions", "1");
+  } else if (filter.kind === "outcome") {
+    params.set("outcome", filter.outcome);
   }
   return `/inventory/sessions/${sessionId}/scans?${params.toString()}`;
+}
+
+function buildExceptionsPath(sessionId: string, page: number): string {
+  const params = new URLSearchParams();
+  params.set("exceptions", "1");
+  params.set("per_page", "20");
+  params.set("page", String(page));
+  return `/inventory/sessions/${sessionId}/scans?${params.toString()}`;
+}
+
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) {
+    return null;
+  }
+  const star = header.match(/filename\*=UTF-8''([^;\s]+)/i);
+  if (star?.[1]) {
+    return decodeURIComponent(star[1]);
+  }
+  const quoted = header.match(/filename="([^"]+)"/i);
+  if (quoted?.[1]) {
+    return quoted[1];
+  }
+  const plain = header.match(/filename=([^;\s]+)/i);
+  if (plain?.[1]) {
+    return plain[1];
+  }
+  return null;
+}
+
+async function downloadExceptionsCsv(sessionId: string): Promise<string | null> {
+  const url = `${getApiBaseUrl()}/api/v1/inventory/sessions/${sessionId}/exceptions.csv`;
+  const headers = new Headers();
+  headers.set("Accept", "text/csv, application/json");
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      credentials: typeof window !== "undefined" ? "include" : "same-origin",
+      headers,
+    });
+  } catch {
+    return "Exceptions could not be downloaded.";
+  }
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      try {
+        const body = (await response.json()) as {
+          detail?: { message?: string };
+        };
+        return body.detail?.message ?? "Exceptions could not be downloaded.";
+      } catch {
+        return "Exceptions could not be downloaded.";
+      }
+    }
+    return "Exceptions could not be downloaded.";
+  }
+  const blob = await response.blob();
+  const filename =
+    filenameFromContentDisposition(
+      response.headers.get("Content-Disposition"),
+    ) ?? "exceptions.csv";
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+  return null;
 }
 
 function playTone(audioContextRef: React.RefObject<AudioContext | null>, hz: number) {
@@ -200,8 +310,17 @@ function WorkstationHeader({ session }: { session: InventorySession }) {
   );
 }
 
-function InventoryStepper({ status }: { status: InventorySessionStatus }) {
+function InventoryStepper({
+  status,
+  exportPending,
+  onExport,
+}: {
+  status: InventorySessionStatus;
+  exportPending: boolean;
+  onExport: () => void;
+}) {
   const currentIndex = stepperCurrentIndex(status);
+  const exportEnabled = status === "in_review" || status === "cancelled";
 
   return (
     <ol className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
@@ -221,7 +340,10 @@ function InventoryStepper({ status }: { status: InventorySessionStatus }) {
           type="button"
           variant="outline"
           className="min-h-11 w-full min-w-0 text-sm"
-          disabled
+          disabled={!exportEnabled || exportPending}
+          onClick={() => {
+            onExport();
+          }}
         >
           Export exceptions
         </Button>
@@ -374,7 +496,13 @@ export function SessionView({ sessionId }: SessionViewProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [scanSearchDraft, setScanSearchDraft] = useState("");
   const [scanSearchQ, setScanSearchQ] = useState("");
-  const [scanOutcome, setScanOutcome] = useState<InventoryScanOutcome | "">("");
+  const [scanFilter, setScanFilter] = useState<ScanListFilter>(
+    DEFAULT_SCAN_FILTER,
+  );
+  const [scanPage, setScanPage] = useState(1);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [exportPending, setExportPending] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const sessionQuery = useQuery({
     queryKey: ["inventory", "session", sessionId],
@@ -404,15 +532,36 @@ export function SessionView({ sessionId }: SessionViewProps) {
     return () => window.clearTimeout(handle);
   }, [scanSearchDraft]);
 
+  useEffect(() => {
+    setScanPage(1);
+  }, [scanSearchQ, scanFilter]);
+
   const scansPath = useMemo(
-    () => buildScansPath(sessionId, scanSearchQ, scanOutcome),
-    [sessionId, scanSearchQ, scanOutcome],
+    () => buildScansPath(sessionId, scanSearchQ, scanFilter, scanPage),
+    [sessionId, scanSearchQ, scanFilter, scanPage],
   );
 
   const scansQuery = useQuery({
     queryKey: ["inventory", "session", sessionId, "scans", scansPath],
     queryFn: () => fetchApi<InventoryScanListResponse>(scansPath),
+    placeholderData: (previous) => previous,
     enabled:
+      session?.status === "in_progress" ||
+      session?.status === "in_review" ||
+      session?.status === "cancelled",
+  });
+
+  const exceptionsPath = useMemo(
+    () => buildExceptionsPath(sessionId, reviewPage),
+    [sessionId, reviewPage],
+  );
+
+  const exceptionsQuery = useQuery({
+    queryKey: ["inventory", "session", sessionId, "exceptions", exceptionsPath],
+    queryFn: () => fetchApi<InventoryScanListResponse>(exceptionsPath),
+    placeholderData: (previous) => previous,
+    enabled:
+      session?.status === "draft" ||
       session?.status === "in_progress" ||
       session?.status === "in_review" ||
       session?.status === "cancelled",
@@ -676,6 +825,16 @@ export function SessionView({ sessionId }: SessionViewProps) {
     }
   }
 
+  async function onExportExceptions() {
+    setExportPending(true);
+    setExportError(null);
+    const message = await downloadExceptionsCsv(sessionId);
+    if (message) {
+      setExportError(message);
+    }
+    setExportPending(false);
+  }
+
   async function onConfirmCancel() {
     setActionPending(true);
     setActionError(null);
@@ -744,7 +903,16 @@ export function SessionView({ sessionId }: SessionViewProps) {
         ) : session ? (
           <>
             <WorkstationHeader session={session} />
-            <InventoryStepper status={session.status} />
+            <InventoryStepper
+              status={session.status}
+              exportPending={exportPending}
+              onExport={() => {
+                void onExportExceptions();
+              }}
+            />
+            {exportError ? (
+              <p className="text-sm text-destructive">{exportError}</p>
+            ) : null}
             <SessionProgress
               seen={progressSeen}
               expectedCount={session.expected_count}
@@ -944,8 +1112,23 @@ export function SessionView({ sessionId }: SessionViewProps) {
                 scansQuery={scansQuery}
                 scanSearchDraft={scanSearchDraft}
                 onScanSearchChange={setScanSearchDraft}
-                scanOutcome={scanOutcome}
-                onScanOutcomeChange={setScanOutcome}
+                scanFilter={scanFilter}
+                onScanFilterChange={setScanFilter}
+                scanPage={scanPage}
+                onScanPageChange={setScanPage}
+              />
+            ) : null}
+
+            {session.status === "draft" ||
+            session.status === "in_progress" ||
+            session.status === "in_review" ||
+            session.status === "cancelled" ? (
+              <ExceptionReviewPanel
+                sessionId={sessionId}
+                status={session.status}
+                exceptionsQuery={exceptionsQuery}
+                reviewPage={reviewPage}
+                onReviewPageChange={setReviewPage}
               />
             ) : null}
           </>
@@ -992,8 +1175,10 @@ function ScansPanel({
   scansQuery,
   scanSearchDraft,
   onScanSearchChange,
-  scanOutcome,
-  onScanOutcomeChange,
+  scanFilter,
+  onScanFilterChange,
+  scanPage,
+  onScanPageChange,
 }: {
   scansQuery: {
     data: InventoryScanListResponse | undefined;
@@ -1005,18 +1190,23 @@ function ScansPanel({
   };
   scanSearchDraft: string;
   onScanSearchChange: (value: string) => void;
-  scanOutcome: InventoryScanOutcome | "";
-  onScanOutcomeChange: (value: InventoryScanOutcome | "") => void;
+  scanFilter: ScanListFilter;
+  onScanFilterChange: (filter: ScanListFilter) => void;
+  scanPage: number;
+  onScanPageChange: (page: number) => void;
 }) {
   const items = scansQuery.data?.items ?? [];
   const pending =
     scansQuery.isPending || scansQuery.isPlaceholderData;
+  const page = scansQuery.data?.page ?? scanPage;
+  const total = scansQuery.data?.total ?? null;
+  const hasNext = scansQuery.data?.has_next ?? false;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="min-w-0 rounded-lg border border-border bg-card p-4">
-        <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center">
-          <div className="relative min-w-0 flex-1">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="relative min-w-0">
             <HugeiconsIcon
               icon={SearchIcon}
               strokeWidth={2}
@@ -1029,27 +1219,24 @@ function ScansPanel({
               className="min-h-11 h-11 pl-9 text-sm"
             />
           </div>
-          <Select
-            value={scanOutcome}
-            onValueChange={(value) => {
-              if (value == null) {
-                return;
-              }
-              onScanOutcomeChange(value as InventoryScanOutcome | "");
-            }}
-          >
-            <SelectTrigger className="min-h-11 h-11 w-full min-w-0 text-sm md:w-auto md:min-w-40">
-              <SelectValue placeholder="Any outcome" />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectItem value="">Any outcome</SelectItem>
-              {OUTCOME_FILTER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {SCAN_FILTER_CHIPS.map((chip) => {
+              const active = scanFiltersEqual(scanFilter, chip.filter);
+              return (
+                <Button
+                  key={chip.label}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  className="min-h-11 shrink-0 text-sm"
+                  onClick={() => {
+                    onScanFilterChange(chip.filter);
+                  }}
+                >
+                  {chip.label}
+                </Button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -1109,6 +1296,210 @@ function ScansPanel({
           </table>
         </div>
       )}
+
+      {!scansQuery.isError ? (
+        <CatalogPagination
+          page={page}
+          total={total}
+          perPage={20}
+          hasNext={hasNext}
+          onPage={onScanPageChange}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ExceptionReviewRow({
+  sessionId,
+  scan,
+  controlsEnabled,
+}: {
+  sessionId: string;
+  scan: InventoryScan;
+  controlsEnabled: boolean;
+}) {
+  const pairs = actionsFor(scan.outcome);
+  const [selectedAction, setSelectedAction] = useState("");
+  const [rowError, setRowError] = useState<string | null>(null);
+  const [rowPending, setRowPending] = useState(false);
+
+  const buttonsDisabled =
+    !controlsEnabled || !selectedAction || rowPending;
+
+  async function saveDecision(
+    action: string,
+    decision: "approved" | "no_action" | null,
+  ) {
+    setRowPending(true);
+    setRowError(null);
+    try {
+      const response = await fetchApi<DecisionResponse>(
+        `/inventory/sessions/${sessionId}/scans/${scan.id}/decision`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, decision }),
+        },
+      );
+      setSelectedAction(response.action);
+    } catch (caught) {
+      const message =
+        caught instanceof ApiError
+          ? (caught.detail?.message ?? caught.message)
+          : caught instanceof Error
+            ? caught.message
+            : "Decision not saved.";
+      setRowError(message);
+    } finally {
+      setRowPending(false);
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
+      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <p className="font-mono text-sm text-foreground">{scan.barcode}</p>
+        <p
+          className={`inline-flex w-fit rounded-md px-2 py-0.5 text-xs font-medium ${outcomeBadgeClass(scan.outcome)}`}
+        >
+          {scan.outcome_label}
+        </p>
+      </div>
+      <p className="text-sm text-foreground">{scan.title ?? NO_TITLE}</p>
+      {scan.message ? (
+        <p className="text-sm text-muted-foreground">{scan.message}</p>
+      ) : null}
+      {pairs ? (
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <Select
+            value={selectedAction}
+            disabled={!controlsEnabled || rowPending}
+            onValueChange={(value) => {
+              if (value == null || value === "") {
+                return;
+              }
+              setSelectedAction(value);
+              void saveDecision(value, null);
+            }}
+          >
+            <SelectTrigger className="min-h-11 w-full min-w-0 text-sm sm:min-w-64 sm:flex-1">
+              <SelectValue placeholder="Choose an action" />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              {pairs.map((sentence) => (
+                <SelectItem key={sentence} value={sentence}>
+                  {sentence}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              className="min-h-11"
+              disabled={buttonsDisabled}
+              onClick={() => {
+                void saveDecision(selectedAction, "approved");
+              }}
+            >
+              Approve
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              disabled={buttonsDisabled}
+              onClick={() => {
+                void saveDecision(selectedAction, "no_action");
+              }}
+            >
+              No action
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {rowError ? (
+        <p className="text-sm text-destructive">{rowError}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ExceptionReviewPanel({
+  sessionId,
+  status,
+  exceptionsQuery,
+  reviewPage,
+  onReviewPageChange,
+}: {
+  sessionId: string;
+  status: InventorySessionStatus;
+  exceptionsQuery: {
+    data: InventoryScanListResponse | undefined;
+    isPending: boolean;
+    isPlaceholderData: boolean;
+    isError: boolean;
+    error: Error | null;
+    refetch: () => Promise<unknown>;
+  };
+  reviewPage: number;
+  onReviewPageChange: (page: number) => void;
+}) {
+  const items = exceptionsQuery.data?.items ?? [];
+  const pending =
+    exceptionsQuery.isPending || exceptionsQuery.isPlaceholderData;
+  const page = exceptionsQuery.data?.page ?? reviewPage;
+  const total = exceptionsQuery.data?.total ?? null;
+  const hasNext = exceptionsQuery.data?.has_next ?? false;
+  const controlsEnabled = status === "in_review";
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {exceptionsQuery.isError ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
+          <p className="text-sm text-foreground">
+            {exceptionsQuery.error instanceof Error
+              ? exceptionsQuery.error.message
+              : "Exceptions could not be loaded."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 self-start"
+            onClick={() => {
+              void exceptionsQuery.refetch();
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : pending ? (
+        <Skeleton className="h-24 w-full rounded-lg" />
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{NO_EXCEPTIONS_COPY}</p>
+      ) : (
+        <div className="flex min-w-0 flex-col gap-3">
+          {items.map((scan) => (
+            <ExceptionReviewRow
+              key={scan.id}
+              sessionId={sessionId}
+              scan={scan}
+              controlsEnabled={controlsEnabled}
+            />
+          ))}
+        </div>
+      )}
+
+      {!exceptionsQuery.isError && !pending && (total ?? 0) > 0 ? (
+        <CatalogPagination
+          page={page}
+          total={total}
+          perPage={20}
+          hasNext={hasNext}
+          onPage={onReviewPageChange}
+        />
+      ) : null}
     </div>
   );
 }
