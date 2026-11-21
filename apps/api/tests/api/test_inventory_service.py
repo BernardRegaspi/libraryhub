@@ -501,6 +501,10 @@ def test_record_scan_empty_koha_list_not_found(db):
         "outcome": "not_found",
     }
 
+    loaded = get_session(db, department_id=department_id, session_id=session_id)
+    assert loaded["counters"]["not_found"] == 1
+    assert loaded["counters"]["needs_a_look"] == 1
+
 
 def test_record_scan_verified_on_shelf(db):
     user, department_id = _user_and_department(db)

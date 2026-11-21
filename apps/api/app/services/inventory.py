@@ -145,7 +145,7 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat()
 
 
-def _session_payload(row: InventorySession) -> dict[str, Any]:
+def _session_payload(db: Session, row: InventorySession) -> dict[str, Any]:
     expected = row.expected_count
     return {
         "id": str(row.id),
@@ -159,7 +159,7 @@ def _session_payload(row: InventorySession) -> dict[str, Any]:
         "started_at": _iso(row.started_at),
         "cancelled_at": _iso(row.cancelled_at),
         "created_at": _iso(row.created_at),
-        "counters": summarize_scans([], expected_count=expected),
+        "counters": _session_counters(db, row),
     }
 
 
@@ -277,7 +277,7 @@ def create_session(
     )
     db.commit()
     db.refresh(row)
-    return _session_payload(row)
+    return _session_payload(db, row)
 
 
 def list_sessions(
@@ -314,7 +314,7 @@ def list_sessions(
     has_next = params.page * params.per_page < total
 
     return {
-        "items": [_session_payload(row) for row in rows],
+        "items": [_session_payload(db, row) for row in rows],
         "page": params.page,
         "per_page": params.per_page,
         "total": total,
@@ -329,7 +329,7 @@ def get_session(
     session_id: UUID,
 ) -> dict[str, Any]:
     row = _fetch_session(db, department_id=department_id, session_id=session_id)
-    return _session_payload(row)
+    return _session_payload(db, row)
 
 
 def start_session(
@@ -360,7 +360,7 @@ def start_session(
     )
     db.commit()
     db.refresh(row)
-    return _session_payload(row)
+    return _session_payload(db, row)
 
 
 def cancel_session(
@@ -391,7 +391,7 @@ def cancel_session(
     )
     db.commit()
     db.refresh(row)
-    return _session_payload(row)
+    return _session_payload(db, row)
 
 
 def _normalize_barcode(barcode: str) -> str:
