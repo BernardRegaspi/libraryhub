@@ -1,4 +1,17 @@
+from uuid import UUID
+
 from pydantic import BaseModel
+
+
+class SessionCreateIn(BaseModel):
+    name: str
+    home_library_id: str
+    location: str | None = None
+
+
+class ScanIn(BaseModel):
+    client_scan_id: UUID
+    barcode: str
 
 
 class SessionListParams(BaseModel):

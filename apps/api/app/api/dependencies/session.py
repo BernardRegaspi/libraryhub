@@ -64,3 +64,29 @@ def require_patron_permission(
         return payload, session_row
 
     return _dependency
+
+
+_INVENTORY_PERMISSION_DENIED = HTTPException(
+    status_code=403,
+    detail={
+        "code": "permission_denied",
+        "message": "You do not have access to inventory.",
+    },
+)
+
+
+def require_inventory_user(
+    request: Request,
+    db: Annotated[Session, Depends(get_db_session)],
+) -> tuple[CurrentUserOut, UserSession]:
+    raw_token = request.cookies.get("libraryhub_session")
+    try:
+        payload, session_row = load_session(db, raw_token)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc
+    if "inventory.view" not in payload.permissions:
+        raise _INVENTORY_PERMISSION_DENIED
+    return payload, session_row
