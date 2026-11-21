@@ -1,6 +1,12 @@
 export const instant = false;
 
-import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
+import { Suspense } from "react";
+
+import { SessionList } from "@/components/inventory/session-list";
+import {
+  AccessDenied,
+  ModuleFrame,
+} from "@/components/layout/module-frame";
 import {
   Card,
   CardDescription,
@@ -10,7 +16,7 @@ import {
 import { gatePage } from "@/lib/auth/session";
 
 const INVENTORY_DESCRIPTION =
-  "Plan a stocktake session by department, scan barcodes, and review exceptions.";
+  "Scan a Koha library, or one shelving location, and keep a record of each barcode.";
 
 export default async function InventoryPage() {
   const gate = await gatePage("inventory.view");
@@ -21,15 +27,15 @@ export default async function InventoryPage() {
   const { me } = gate;
   const needsDepartment = me.active_department_id === null;
 
-  return (
-    <>
-      <ModuleFrame
-        eyebrow="Library"
-        title="Inventory & stocktaking"
-        description={INVENTORY_DESCRIPTION}
-        hideModuleSentence={needsDepartment}
-      />
-      {needsDepartment ? (
+  if (needsDepartment) {
+    return (
+      <>
+        <ModuleFrame
+          eyebrow="Library"
+          title="Inventory"
+          description={INVENTORY_DESCRIPTION}
+          hideModuleSentence
+        />
         <div className="flex justify-center px-6 pb-8 lg:px-8">
           <Card className="w-full max-w-md text-center">
             <CardHeader className="items-center">
@@ -37,13 +43,19 @@ export default async function InventoryPage() {
                 Choose a department
               </CardTitle>
               <CardDescription className="text-balance">
-                Inventory sessions run against one department at a time. Use
-                the department selector in the top bar.
+                Inventory sessions run against one department at a time. Use the
+                department selector in the top bar.
               </CardDescription>
             </CardHeader>
           </Card>
         </div>
-      ) : null}
-    </>
+      </>
+    );
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <SessionList />
+    </Suspense>
   );
 }
