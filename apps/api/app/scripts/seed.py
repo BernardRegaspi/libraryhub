@@ -1,5 +1,8 @@
 import os
+import sys
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from app.database.session import get_session_factory
@@ -12,14 +15,21 @@ from app.models.identity import (
 )
 from app.services.passwords import hash_password
 
-_BOOTSTRAP_USERNAME = "m.reyes"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _bootstrap_profile() -> tuple[str, str, str]:
+    username = (os.environ.get("LIBRARYHUB_BOOTSTRAP_USERNAME") or "m.reyes").strip()
+    email = (
+        os.environ.get("LIBRARYHUB_BOOTSTRAP_EMAIL") or f"{username}@usant.edu.ph"
+    ).strip()
+    display_name = (os.environ.get("LIBRARYHUB_BOOTSTRAP_DISPLAY_NAME") or username).strip()
+    return username, email, display_name
 
 
 def seed_bootstrap(db: Session | None) -> None:
     password = os.environ.get("LIBRARYHUB_BOOTSTRAP_PASSWORD", "")
     if not password.strip():
-        import sys
-
         print(
             "LIBRARYHUB_BOOTSTRAP_PASSWORD is missing or blank. "
             "Set it in the repository root .env or pass -e when running docker compose exec.",
@@ -30,13 +40,15 @@ def seed_bootstrap(db: Session | None) -> None:
     if db is None:
         return
 
-    if db.query(AppUser).filter_by(username=_BOOTSTRAP_USERNAME).one_or_none() is not None:
+    username, email, display_name = _bootstrap_profile()
+
+    if db.query(AppUser).filter_by(username=username).one_or_none() is not None:
         return
 
     user = AppUser(
-        username=_BOOTSTRAP_USERNAME,
-        email="m.reyes@usant.edu.ph",
-        display_name="Maria Reyes",
+        username=username,
+        email=email,
+        display_name=display_name,
         status="active",
     )
     db.add(user)
@@ -63,6 +75,8 @@ def seed_bootstrap(db: Session | None) -> None:
 
 
 def main() -> None:
+    load_dotenv(_REPO_ROOT / ".env")
+    load_dotenv(_REPO_ROOT / "apps" / "api" / ".env")
     session = get_session_factory()()
     try:
         seed_bootstrap(session)
