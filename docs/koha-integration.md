@@ -66,10 +66,13 @@ The browser calls ULMS only: `/api/v1/inventory` for sessions and scans. The API
 
 This module does not call item update routes.
 
-Design: `docs/superpowers/specs/2026-11-21-inventory-scanning-design.md`.
+Finish scanning, resume, review decisions, exception export, and session audit list PostgreSQL only. Export builds the CSV from stored scans and does not call Koha.
+
+Design: `docs/superpowers/specs/2026-11-21-inventory-scanning-design.md`, `docs/superpowers/specs/2026-11-21-inventory-workstation-design.md`.
 
 ## Related docs
 
 - `plan/plan.md` — product scope
 - `docs/superpowers/specs/2026-11-17-catalog-search-design.md` — catalog search design
 - `docs/superpowers/specs/2026-11-21-inventory-scanning-design.md` — inventory scanning design
+- `docs/superpowers/specs/2026-11-21-inventory-workstation-design.md` — inventory workstation and review
