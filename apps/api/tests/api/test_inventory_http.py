@@ -215,6 +215,119 @@ def test_scan_timeout_leaves_no_scan(auth_client, db, monkeypatch):
     assert listed.json()["total"] == 0
 
 
+def test_finish_review_export(auth_client, db, monkeypatch):
+    _add_librarian(db, "inv-http-review")
+    _patch_koha(monkeypatch, _default_handler)
+    _login(auth_client, "inv-http-review")
+    created = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={"name": "Shelf A", "home_library_id": "CPL", "location": "GEN"},
+        headers=csrf_headers(auth_client),
+    )
+    session_id = created.json()["id"]
+    reference = created.json()["reference"]
+    auth_client.post(
+        f"/api/v1/inventory/sessions/{session_id}/start",
+        headers=csrf_headers(auth_client),
+    )
+    scan = auth_client.post(
+        f"/api/v1/inventory/sessions/{session_id}/scans",
+        json={"client_scan_id": str(uuid.uuid4()), "barcode": "GONE"},
+        headers=csrf_headers(auth_client),
+    )
+    assert scan.status_code == 200
+    scan_id = scan.json()["scan"]["id"]
+
+    finished = auth_client.post(
+        f"/api/v1/inventory/sessions/{session_id}/finish",
+        headers=csrf_headers(auth_client),
+    )
+    assert finished.status_code == 200
+    assert finished.json()["status"] == "in_review"
+
+    during_review = auth_client.post(
+        f"/api/v1/inventory/sessions/{session_id}/scans",
+        json={"client_scan_id": str(uuid.uuid4()), "barcode": "GONE"},
+        headers=csrf_headers(auth_client),
+    )
+    assert during_review.status_code == 409
+    assert during_review.json()["detail"]["code"] == "session_in_review"
+
+    decided = auth_client.put(
+        f"/api/v1/inventory/sessions/{session_id}/scans/{scan_id}/decision",
+        json={"action": "Search the shelf again", "decision": "approved"},
+        headers=csrf_headers(auth_client),
+    )
+    assert decided.status_code == 200
+    assert decided.json()["decided_by"] == "Inv Librarian"
+
+    csrf_session = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={"name": "CSRF check", "home_library_id": "CPL", "location": "GEN"},
+        headers=csrf_headers(auth_client),
+    )
+    csrf_id = csrf_session.json()["id"]
+    auth_client.post(
+        f"/api/v1/inventory/sessions/{csrf_id}/start",
+        headers=csrf_headers(auth_client),
+    )
+    no_csrf_finish = auth_client.post(f"/api/v1/inventory/sessions/{csrf_id}/finish")
+    assert no_csrf_finish.status_code == 403
+    assert no_csrf_finish.json()["detail"]["code"] == "csrf_failed"
+
+    no_csrf_resume = auth_client.post(f"/api/v1/inventory/sessions/{session_id}/resume")
+    assert no_csrf_resume.status_code == 403
+    assert no_csrf_resume.json()["detail"]["code"] == "csrf_failed"
+
+    no_csrf_decision = auth_client.put(
+        f"/api/v1/inventory/sessions/{session_id}/scans/{scan_id}/decision",
+        json={"action": "Search the shelf again", "decision": "approved"},
+    )
+    assert no_csrf_decision.status_code == 403
+    assert no_csrf_decision.json()["detail"]["code"] == "csrf_failed"
+
+    exported = auth_client.get(f"/api/v1/inventory/sessions/{session_id}/exceptions.csv")
+    assert exported.status_code == 200
+    assert "text/csv" in exported.headers.get("content-type", "")
+    assert f"{reference}-exceptions.csv" in exported.headers.get("content-disposition", "")
+    assert exported.text.startswith(
+        "barcode,title,call_number,outcome,message,action,decision,decided_by,decided_at"
+    )
+
+    audit = auth_client.get(f"/api/v1/inventory/sessions/{session_id}/audit")
+    assert audit.status_code == 200
+    export_rows = [
+        item for item in audit.json()["items"] if item["action"] == "inventory.review.export"
+    ]
+    assert export_rows
+
+    bad_id = auth_client.post(
+        "/api/v1/inventory/sessions/not-a-uuid/finish",
+        headers=csrf_headers(auth_client),
+    )
+    assert bad_id.status_code == 404
+    assert bad_id.json()["detail"]["message"] == "That inventory session was not found."
+
+    add_user(
+        db,
+        username="inv-http-student-finish",
+        email="inv-http-student-finish@usant.edu.ph",
+        display_name="Inv Student",
+        password=PASSWORD,
+        role_name="Student",
+        department_code="COLLEGE",
+    )
+    auth_client.post("/api/v1/auth/logout", headers=csrf_headers(auth_client))
+    _login(auth_client, "inv-http-student-finish")
+    student_finish = auth_client.post(
+        f"/api/v1/inventory/sessions/{session_id}/finish",
+        headers=csrf_headers(auth_client),
+    )
+    assert student_finish.status_code == 403
+    assert student_finish.json()["detail"]["code"] == "permission_denied"
+    assert student_finish.json()["detail"]["message"] == "You do not have access to inventory."
+
+
 def test_super_admin_list_sessions_requires_department(auth_client, db, monkeypatch):
     add_user(
         db,

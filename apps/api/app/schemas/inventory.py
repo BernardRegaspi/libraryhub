@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -12,6 +13,11 @@ class SessionCreateIn(BaseModel):
 class ScanIn(BaseModel):
     client_scan_id: UUID
     barcode: str
+
+
+class DecisionIn(BaseModel):
+    action: str
+    decision: Literal["approved", "no_action"] | None = None
 
 
 class SessionListParams(BaseModel):

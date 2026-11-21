@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.session import require_inventory_user
@@ -13,16 +13,27 @@ from app.integrations.koha.client import KohaClient
 from app.integrations.koha.exceptions import KohaError, KohaTimeoutError
 from app.models.identity import UserSession
 from app.schemas.auth import CurrentUserOut
-from app.schemas.inventory import ScanIn, ScanListParams, SessionCreateIn, SessionListParams
+from app.schemas.inventory import (
+    DecisionIn,
+    ScanIn,
+    ScanListParams,
+    SessionCreateIn,
+    SessionListParams,
+)
 from app.services.auth import AuthError, assert_csrf
 from app.services.inventory import (
     InventoryError,
     cancel_session,
     create_session,
+    export_exceptions,
+    finish_session,
     get_session,
     list_scans,
+    list_session_audit,
     list_sessions,
     record_scan,
+    resume_session,
+    save_decision,
     start_session,
 )
 
@@ -31,6 +42,11 @@ router = APIRouter(prefix="/inventory", tags=["inventory"])
 _SESSION_NOT_FOUND = HTTPException(
     status_code=404,
     detail={"code": "not_found", "message": "That inventory session was not found."},
+)
+
+_SCAN_NOT_FOUND = HTTPException(
+    status_code=404,
+    detail={"code": "not_found", "message": "That inventory scan was not found."},
 )
 
 _COUNT_UNAVAILABLE = HTTPException(
@@ -114,6 +130,13 @@ def _parse_session_id(session_id: str) -> UUID:
         raise _SESSION_NOT_FOUND from None
 
 
+def _parse_scan_id(scan_id: str) -> UUID:
+    try:
+        return UUID(scan_id)
+    except ValueError:
+        raise _SCAN_NOT_FOUND from None
+
+
 def _assert_write_csrf(request: Request, session_row: UserSession) -> None:
     try:
         assert_csrf(
@@ -179,6 +202,76 @@ def inventory_create_session(
         _handle_koha_create(exc)
 
 
+@router.get("/sessions/{session_id}/exceptions.csv")
+def inventory_export_exceptions(
+    session_id: str,
+    user: Annotated[tuple[CurrentUserOut, UserSession], Depends(require_inventory_user)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> Response:
+    payload, _session = user
+    parsed = _parse_session_id(session_id)
+    try:
+        filename, body = export_exceptions(
+            db,
+            user_id=payload.user.id,
+            department_id=payload.active_department_id,
+            session_id=parsed,
+        )
+    except InventoryError as exc:
+        _raise_inventory(exc)
+    return Response(
+        content=body,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/sessions/{session_id}/audit")
+def inventory_list_session_audit(
+    session_id: str,
+    user: Annotated[tuple[CurrentUserOut, UserSession], Depends(require_inventory_user)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> dict:
+    payload, _session = user
+    parsed = _parse_session_id(session_id)
+    try:
+        return list_session_audit(
+            db,
+            department_id=payload.active_department_id,
+            session_id=parsed,
+        )
+    except InventoryError as exc:
+        _raise_inventory(exc)
+
+
+@router.put("/sessions/{session_id}/scans/{scan_id}/decision")
+def inventory_save_decision(
+    session_id: str,
+    scan_id: str,
+    request: Request,
+    body: DecisionIn,
+    user: Annotated[tuple[CurrentUserOut, UserSession], Depends(require_inventory_user)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> dict:
+    payload, session_row = user
+    _assert_write_csrf(request, session_row)
+    parsed_session = _parse_session_id(session_id)
+    parsed_scan = _parse_scan_id(scan_id)
+    try:
+        return save_decision(
+            db,
+            user_id=payload.user.id,
+            display_name=payload.user.display_name,
+            department_id=payload.active_department_id,
+            session_id=parsed_session,
+            scan_id=parsed_scan,
+            action=body.action,
+            decision=body.decision,
+        )
+    except InventoryError as exc:
+        _raise_inventory(exc)
+
+
 @router.get("/sessions/{session_id}")
 def inventory_get_session(
     session_id: str,
@@ -209,6 +302,48 @@ def inventory_start_session(
     parsed = _parse_session_id(session_id)
     try:
         return start_session(
+            db,
+            user_id=payload.user.id,
+            department_id=payload.active_department_id,
+            session_id=parsed,
+        )
+    except InventoryError as exc:
+        _raise_inventory(exc)
+
+
+@router.post("/sessions/{session_id}/finish")
+def inventory_finish_session(
+    session_id: str,
+    request: Request,
+    user: Annotated[tuple[CurrentUserOut, UserSession], Depends(require_inventory_user)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> dict:
+    payload, session_row = user
+    _assert_write_csrf(request, session_row)
+    parsed = _parse_session_id(session_id)
+    try:
+        return finish_session(
+            db,
+            user_id=payload.user.id,
+            department_id=payload.active_department_id,
+            session_id=parsed,
+        )
+    except InventoryError as exc:
+        _raise_inventory(exc)
+
+
+@router.post("/sessions/{session_id}/resume")
+def inventory_resume_session(
+    session_id: str,
+    request: Request,
+    user: Annotated[tuple[CurrentUserOut, UserSession], Depends(require_inventory_user)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> dict:
+    payload, session_row = user
+    _assert_write_csrf(request, session_row)
+    parsed = _parse_session_id(session_id)
+    try:
+        return resume_session(
             db,
             user_id=payload.user.id,
             department_id=payload.active_department_id,
