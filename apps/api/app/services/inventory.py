@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.integrations.koha.availability import item_status
 from app.integrations.koha.exceptions import KohaError, KohaResponseError, KohaTimeoutError
 from app.integrations.koha.query import escape_like
-from app.models.identity import AuditLog
+from app.models.identity import AppUser, AuditLog
 from app.models.inventory import InventoryReviewDecision, InventoryScan, InventorySession
 from app.schemas.inventory import ScanListParams, SessionListParams
 from app.services.inventory_classify import classify_primary, display_label, duplicate_message
@@ -65,6 +67,22 @@ _DECISION_NOT_IN_REVIEW = (
     409,
     "session_not_in_review",
     "Finish the session before reviewing exceptions.",
+)
+_EXPORT_NOT_READY = (
+    409,
+    "export_not_ready",
+    "Export is available after scanning is finished.",
+)
+_CSV_COLUMNS = (
+    "barcode",
+    "title",
+    "call_number",
+    "outcome",
+    "message",
+    "action",
+    "decision",
+    "decided_by",
+    "decided_at",
 )
 _SCAN_NOT_FOUND = (404, "not_found", "That inventory scan was not found.")
 _SESSION_CANCELLED_SCAN = (409, "session_cancelled", "This session is cancelled.")
@@ -543,6 +561,75 @@ def save_decision(
         "decided_by": display_name if saved.decision is not None else None,
         "decided_at": _iso(saved.decided_at),
     }
+
+
+def export_exceptions(
+    db: Session,
+    *,
+    user_id: UUID,
+    department_id: UUID | None,
+    session_id: UUID,
+) -> tuple[str, str]:
+    session = _fetch_session(db, department_id=department_id, session_id=session_id)
+    if session.status not in ("in_review", "cancelled"):
+        _raise(*_EXPORT_NOT_READY)
+
+    rows = (
+        db.query(InventoryScan, InventoryReviewDecision, AppUser)
+        .outerjoin(
+            InventoryReviewDecision,
+            InventoryReviewDecision.scan_id == InventoryScan.id,
+        )
+        .outerjoin(AppUser, AppUser.id == InventoryReviewDecision.decided_by)
+        .filter(
+            InventoryScan.session_id == session_id,
+            InventoryScan.is_primary.is_(True),
+            InventoryScan.outcome != "verified",
+        )
+        .order_by(InventoryScan.scanned_at.asc(), InventoryScan.id.asc())
+        .all()
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(_CSV_COLUMNS)
+    row_count = 0
+    for scan, decision, decider in rows:
+        decided_at = ""
+        if decision is not None and decision.decided_at is not None:
+            iso = _iso(decision.decided_at)
+            decided_at = iso if iso is not None else ""
+        writer.writerow(
+            [
+                scan.barcode,
+                scan.title or "",
+                scan.call_number or "",
+                scan.outcome,
+                scan.message,
+                decision.action if decision is not None else "",
+                decision.decision if decision is not None else "",
+                decider.display_name if decider is not None else "",
+                decided_at,
+            ]
+        )
+        row_count += 1
+
+    csv_text = buffer.getvalue()
+    if not csv_text.endswith("\n"):
+        csv_text += "\n"
+
+    db.add(
+        AuditLog(
+            user_id=user_id,
+            action="inventory.review.export",
+            module="inventory",
+            entity_type="inventory_session",
+            entity_id=str(session.id),
+            details={"reference": session.reference, "row_count": row_count},
+        )
+    )
+    db.commit()
+    return f"{session.reference}-exceptions.csv", csv_text
 
 
 def _normalize_barcode(barcode: str) -> str:

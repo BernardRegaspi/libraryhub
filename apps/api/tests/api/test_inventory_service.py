@@ -1,3 +1,5 @@
+import csv
+import io
 import re
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -17,6 +19,7 @@ from app.services.inventory import (
     InventoryError,
     cancel_session,
     create_session,
+    export_exceptions,
     finish_session,
     get_session,
     list_scans,
@@ -1293,3 +1296,132 @@ def test_cancel_from_review_keeps_the_decision(db):
     assert cancelled["status"] == "cancelled"
     assert db.query(InventoryScan).filter_by(session_id=session_id).count() == 1
     assert db.query(InventoryReviewDecision).filter_by(scan_id=scan_id).one().decision == "no_action"
+
+
+def test_export_exceptions_csv(db):
+    user, department_id = _user_and_department(db)
+    started, session_id = _started_session(db, user, department_id)
+    missing = record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"GONE": []}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    save_decision(
+        db,
+        user_id=user.id,
+        display_name=user.display_name,
+        department_id=department_id,
+        session_id=session_id,
+        scan_id=UUID(missing["scan"]["id"]),
+        action="Search the shelf again",
+        decision="approved",
+    )
+
+    filename, body = export_exceptions(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    assert filename == f"{started['reference']}-exceptions.csv"
+    rows = list(csv.DictReader(io.StringIO(body)))
+    assert list(rows[0]) == [
+        "barcode",
+        "title",
+        "call_number",
+        "outcome",
+        "message",
+        "action",
+        "decision",
+        "decided_by",
+        "decided_at",
+    ]
+    assert rows[0]["barcode"] == "GONE"
+    assert rows[0]["decision"] == "approved"
+    assert rows[0]["decided_by"] == "Inv Librarian"
+    assert db.get(InventorySession, session_id).status == "in_review"
+    assert (
+        db.query(AuditLog)
+        .filter_by(action="inventory.review.export", entity_id=str(session_id))
+        .count()
+        == 1
+    )
+
+    cancel_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    export_exceptions(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    assert (
+        db.query(AuditLog)
+        .filter_by(action="inventory.review.export", entity_id=str(session_id))
+        .count()
+        == 2
+    )
+
+    _, in_progress_id = _started_session(db, user, department_id)
+    with pytest.raises(InventoryError) as exc:
+        export_exceptions(
+            db,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=in_progress_id,
+        )
+    assert exc.value.status_code == 409
+    assert exc.value.code == "export_not_ready"
+    assert exc.value.message == "Export is available after scanning is finished."
+
+    _, verified_only_id = _started_session(db, user, department_id)
+    record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"ITEM-101": [_AVAILABLE_ITEM]}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=verified_only_id,
+        client_scan_id=uuid4(),
+        barcode="ITEM-101",
+    )
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=verified_only_id,
+    )
+    _, verified_body = export_exceptions(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=verified_only_id,
+    )
+    assert verified_body.strip() == (
+        "barcode,title,call_number,outcome,message,action,decision,decided_by,decided_at"
+    )
+
+    draft = _create_draft(db, user, department_id, "Not ready")
+    with pytest.raises(InventoryError) as exc:
+        export_exceptions(
+            db,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=UUID(draft["id"]),
+        )
+    assert exc.value.status_code == 409
+    assert exc.value.code == "export_not_ready"
+    assert exc.value.message == "Export is available after scanning is finished."
