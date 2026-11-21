@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 type QueueItem = {
   clientScanId: string;
   barcode: string;
@@ -53,7 +51,7 @@ export function createScanQueue(): ScanQueue {
       if (pendingBarcodeToId.has(trimmed)) {
         return { accepted: false, clientScanId: null };
       }
-      const clientScanId = randomUUID();
+      const clientScanId = globalThis.crypto.randomUUID();
       const item: QueueItem = { clientScanId, barcode: trimmed };
       pendingById.set(clientScanId, item);
       pendingBarcodeToId.set(trimmed, clientScanId);
