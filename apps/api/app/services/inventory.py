@@ -61,6 +61,11 @@ _SESSION_NOT_IN_REVIEW = (
     "Only a session in review can return to scanning.",
 )
 _SESSION_CANCELLED_SCAN = (409, "session_cancelled", "This session is cancelled.")
+_SESSION_IN_REVIEW = (
+    409,
+    "session_in_review",
+    "Return to scanning before recording a barcode.",
+)
 _SCAN_TIMEOUT = (
     504,
     "inventory_timeout",
@@ -744,6 +749,8 @@ def record_scan(
         _raise(*_SESSION_NOT_STARTED)
     if session.status == "cancelled":
         _raise(*_SESSION_CANCELLED_SCAN)
+    if session.status == "in_review":
+        _raise(*_SESSION_IN_REVIEW)
 
     primary_barcode = (
         db.query(InventoryScan)

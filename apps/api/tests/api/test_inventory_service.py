@@ -946,3 +946,47 @@ def test_finish_and_resume_session(db):
     assert exc.value.status_code == 409
     assert exc.value.code == "session_not_in_review"
     assert exc.value.message == "Only a session in review can return to scanning."
+
+
+def test_scan_rejected_during_review_and_accepted_after_resume(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    before = db.query(InventoryScan).filter_by(session_id=session_id).count()
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            _FakeKoha(),
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="NOSUCHBC21",
+        )
+    assert exc.value.status_code == 409
+    assert exc.value.code == "session_in_review"
+    assert exc.value.message == "Return to scanning before recording a barcode."
+    assert db.query(InventoryScan).filter_by(session_id=session_id).count() == before
+
+    resume_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    saved = record_scan(
+        db,
+        _FakeKoha(items_by_barcode={"NOSUCHBC21": []}),
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="NOSUCHBC21",
+    )
+    assert saved["scan"]["outcome"] == "not_found"
