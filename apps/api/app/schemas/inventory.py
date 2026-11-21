@@ -8,3 +8,12 @@ class SessionListParams(BaseModel):
     per_page: int = 20
     sort: str = "created_at"
     direction: str = "desc"
+
+
+class ScanListParams(BaseModel):
+    q: str = ""
+    outcome: str | None = None
+    page: int = 1
+    per_page: int = 20
+    sort: str = "scanned_at"
+    direction: str = "desc"

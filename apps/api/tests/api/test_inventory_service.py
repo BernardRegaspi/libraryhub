@@ -1,19 +1,25 @@
 import re
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from test_auth import add_user
 
-from app.integrations.koha.exceptions import KohaResponseError, KohaTimeoutError
+from app.integrations.koha.exceptions import (
+    KohaNotFound,
+    KohaResponseError,
+    KohaTimeoutError,
+)
 from app.models.identity import AuditLog, LibraryDepartment, UserRoleAssignment
-from app.models.inventory import InventorySession
-from app.schemas.inventory import SessionListParams
+from app.models.inventory import InventoryScan, InventorySession
+from app.schemas.inventory import ScanListParams, SessionListParams
 from app.services.inventory import (
     InventoryError,
     cancel_session,
     create_session,
     get_session,
+    list_scans,
     list_sessions,
+    record_scan,
     start_session,
 )
 
@@ -25,24 +31,44 @@ class _FakeKoha:
         self,
         *,
         library_names: dict[str, str] | None = None,
+        item_type_labels: dict[str, str] | None = None,
         expected_count: int = 4,
         count_error: Exception | None = None,
         library_names_error: Exception | None = None,
+        item_type_labels_error: Exception | None = None,
+        items_by_barcode: dict[str, list[dict]] | None = None,
+        find_error: Exception | None = None,
     ) -> None:
         self._library_names = library_names if library_names is not None else {"CPL": "College Library"}
+        self._item_type_labels = item_type_labels if item_type_labels is not None else {"BK": "Book"}
         self._expected_count = expected_count
         self._count_error = count_error
         self._library_names_error = library_names_error
+        self._item_type_labels_error = item_type_labels_error
+        self._items_by_barcode = items_by_barcode if items_by_barcode is not None else {}
+        self._find_error = find_error
+        self.find_calls: list[str] = []
 
     def library_names(self) -> dict[str, str]:
         if self._library_names_error is not None:
             raise self._library_names_error
         return self._library_names
 
+    def item_type_labels(self) -> dict[str, str]:
+        if self._item_type_labels_error is not None:
+            raise self._item_type_labels_error
+        return self._item_type_labels
+
     def count_items(self, *, home_library_id: str, location: str | None) -> int:
         if self._count_error is not None:
             raise self._count_error
         return self._expected_count
+
+    def find_items_by_barcode(self, barcode: str) -> list[dict]:
+        self.find_calls.append(barcode)
+        if self._find_error is not None:
+            raise self._find_error
+        return list(self._items_by_barcode.get(barcode, []))
 
 
 def _user_and_department(db):
@@ -372,3 +398,449 @@ def test_cancel_session_from_draft(db):
         session_id=session_id,
     )
     assert cancelled["status"] == "cancelled"
+
+
+_AVAILABLE_ITEM = {
+    "item_id": 101,
+    "biblio_id": 55,
+    "external_id": "ITEM-101",
+    "withdrawn": 0,
+    "lost_status": 0,
+    "damaged_status": 0,
+    "not_for_loan_status": 0,
+    "effective_not_for_loan_status": 0,
+    "checked_out_date": None,
+    "home_library_id": "CPL",
+    "holding_library_id": "CPL",
+    "location": "GEN",
+    "item_type_id": "BK",
+    "callnumber": "QA 76.73",
+    "biblio": {"title": "Intro Python", "author": "Guido van Rossum"},
+}
+
+
+def _started_session(db, user, department_id, *, location="GEN"):
+    session = create_session(
+        db,
+        _FakeKoha(),
+        user_id=user.id,
+        department_id=department_id,
+        name="Scan session",
+        home_library_id="CPL",
+        location=location,
+    )
+    started = start_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=UUID(session["id"]),
+    )
+    return started, UUID(session["id"])
+
+
+def test_record_scan_rejects_invalid_barcodes(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha()
+
+    for barcode in ("", "x" * 33):
+        before = db.query(InventoryScan).count()
+        with pytest.raises(InventoryError) as exc:
+            record_scan(
+                db,
+                client,
+                user_id=user.id,
+                department_id=department_id,
+                session_id=session_id,
+                client_scan_id=uuid4(),
+                barcode=barcode,
+            )
+        assert exc.value.code == "validation_error"
+        assert db.query(InventoryScan).count() == before
+
+
+def test_record_scan_empty_koha_list_not_found(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha()
+
+    result = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="MISSING-1",
+    )
+
+    scan = result["scan"]
+    assert scan["outcome"] == "not_found"
+    assert scan["is_primary"] is True
+    assert scan["message"] == "No Koha item has this barcode."
+
+    row = db.query(InventoryScan).one()
+    assert row.outcome == "not_found"
+    assert row.is_primary is True
+
+    audit = db.query(AuditLog).filter_by(action="inventory.scan").one()
+    assert audit.user_id == user.id
+    assert audit.details == {
+        "reference": db.query(InventorySession).filter_by(id=session_id).one().reference,
+        "barcode": "MISSING-1",
+        "outcome": "not_found",
+    }
+
+
+def test_record_scan_verified_on_shelf(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    item = {**_AVAILABLE_ITEM, "external_id": "VER-1"}
+    client = _FakeKoha(items_by_barcode={"VER-1": [item]})
+
+    result = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="VER-1",
+    )
+
+    assert result["scan"]["outcome"] == "verified"
+    assert result["scan"]["message"] == "On this shelf."
+    assert result["scan"]["title"] == "Intro Python"
+    assert result["counters"]["verified"] == 1
+
+
+def test_record_scan_duplicate_barcode_skips_second_koha_lookup(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    item = {**_AVAILABLE_ITEM, "external_id": "DUP-BC"}
+    client = _FakeKoha(items_by_barcode={"DUP-BC": [item]})
+
+    first = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="DUP-BC",
+    )
+    assert first["counters"]["verified"] == 1
+
+    second = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="DUP-BC",
+    )
+
+    assert len(client.find_calls) == 1
+    assert second["scan"]["outcome"] == "duplicate"
+    assert second["scan"]["title"] == first["scan"]["title"]
+    assert second["counters"]["verified"] == 1
+    assert second["counters"]["duplicates"] == 1
+
+
+def test_record_scan_idempotent_client_scan_id(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha()
+    client_scan_id = uuid4()
+
+    first = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=client_scan_id,
+        barcode="ONCE-1",
+    )
+    second = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=client_scan_id,
+        barcode="ONCE-1",
+    )
+
+    assert second["scan"]["id"] == first["scan"]["id"]
+    assert db.query(InventoryScan).count() == 1
+    assert db.query(AuditLog).filter_by(action="inventory.scan").count() == 1
+
+
+def test_record_scan_koha_timeout_writes_nothing(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha(find_error=KohaTimeoutError())
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            client,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="TIMEOUT-1",
+        )
+
+    assert exc.value.status_code == 504
+    assert exc.value.code == "inventory_timeout"
+    assert exc.value.message == (
+        "Koha took too long to look up this barcode. The scan was not saved."
+    )
+    assert db.query(InventoryScan).count() == 0
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        [{"item_id": 1}, {"item_id": 2}],
+        [{"external_id": "BAD"}],
+    ],
+)
+def test_record_scan_ambiguous_koha_response(db, items):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha(items_by_barcode={"AMB-1": items})
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            client,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="AMB-1",
+        )
+
+    assert exc.value.code == "inventory_ambiguous"
+    assert db.query(InventoryScan).count() == 0
+
+
+def test_record_scan_requires_started_session(db):
+    user, department_id = _user_and_department(db)
+    draft = _create_draft(db, user, department_id, "Still draft")
+    session_id = UUID(draft["id"])
+    client = _FakeKoha()
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            client,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="NA",
+        )
+    assert exc.value.code == "session_not_started"
+
+    start_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    cancel_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            client,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="NA",
+        )
+    assert exc.value.code == "session_cancelled"
+    assert exc.value.message == "This session is cancelled."
+
+
+def test_record_scan_same_item_second_barcode_is_duplicate(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    shared_item = {**_AVAILABLE_ITEM, "item_id": 777}
+    client = _FakeKoha(
+        items_by_barcode={
+            "BAR-A": [{**shared_item, "external_id": "BAR-A"}],
+            "BAR-B": [{**shared_item, "external_id": "BAR-B"}],
+        }
+    )
+
+    record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="BAR-A",
+    )
+    second = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="BAR-B",
+    )
+
+    assert second["scan"]["outcome"] == "duplicate"
+    primaries = db.query(InventoryScan).filter_by(session_id=session_id, is_primary=True).all()
+    assert len(primaries) == 1
+    assert db.query(InventoryScan).filter_by(session_id=session_id, outcome="duplicate").count() == 1
+
+
+def test_record_scan_withdrawn_wrong_home_is_unexpected(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id, location=None)
+    item = {
+        **_AVAILABLE_ITEM,
+        "external_id": "WD-1",
+        "home_library_id": "UCL",
+        "withdrawn": 1,
+    }
+    client = _FakeKoha(
+        library_names={"CPL": "College Library", "UCL": "University Library"},
+        items_by_barcode={"WD-1": [item]},
+    )
+
+    result = record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="WD-1",
+    )
+
+    assert result["scan"]["outcome"] == "unexpected"
+    assert result["counters"]["verified"] == 0
+
+
+def test_record_scan_koha_not_found_does_not_save(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha(find_error=KohaNotFound())
+
+    with pytest.raises(InventoryError) as exc:
+        record_scan(
+            db,
+            client,
+            user_id=user.id,
+            department_id=department_id,
+            session_id=session_id,
+            client_scan_id=uuid4(),
+            barcode="NF-1",
+        )
+
+    assert exc.value.code == "inventory_unavailable"
+    assert db.query(InventoryScan).count() == 0
+
+
+def test_list_scans_filters_and_sorts(db):
+    user, department_id = _user_and_department(db)
+    _, session_id = _started_session(db, user, department_id)
+    item_a = {**_AVAILABLE_ITEM, "item_id": 1, "external_id": "abc-1"}
+    item_b = {**_AVAILABLE_ITEM, "item_id": 2, "external_id": "XYZ-2"}
+    client = _FakeKoha(items_by_barcode={"abc-1": [item_a], "XYZ-2": [item_b]})
+
+    record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="abc-1",
+    )
+    record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="XYZ-2",
+    )
+
+    listed = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(),
+    )
+    assert listed["total"] == 2
+    assert listed["items"][0]["barcode"] == "XYZ-2"
+    assert listed["items"][1]["barcode"] == "abc-1"
+
+    by_query = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(q="abc"),
+    )
+    assert len(by_query["items"]) == 1
+    assert by_query["items"][0]["barcode"] == "abc-1"
+
+    verified_only = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(outcome="verified"),
+    )
+    assert len(verified_only["items"]) == 2
+    assert all(row["outcome"] == "verified" for row in verified_only["items"])
+
+
+def test_list_scans_invalid_search_and_department(db):
+    user, department_id = _user_and_department(db)
+    other_department_id = _other_department_id(db)
+    _, session_id = _started_session(db, user, other_department_id)
+
+    with pytest.raises(InventoryError) as exc:
+        list_scans(
+            db,
+            department_id=department_id,
+            session_id=session_id,
+            params=ScanListParams(sort="barcode"),
+        )
+    assert exc.value.code == "invalid_search"
+
+    with pytest.raises(InventoryError) as exc:
+        list_scans(
+            db,
+            department_id=department_id,
+            session_id=session_id,
+            params=ScanListParams(page=0),
+        )
+    assert exc.value.code == "invalid_search"
+
+    with pytest.raises(InventoryError) as exc:
+        list_scans(
+            db,
+            department_id=department_id,
+            session_id=session_id,
+            params=ScanListParams(),
+        )
+    assert exc.value.code == "not_found"
