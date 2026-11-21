@@ -648,6 +648,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
         queryKey: ["inventory", "session", sessionId, "scans"],
       });
       void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "exceptions"],
+      });
+      void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
       });
       void queryClient.invalidateQueries({
@@ -687,6 +690,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
         playOutcomeSound(response.scan.outcome);
         void queryClient.invalidateQueries({
           queryKey: ["inventory", "session", sessionId, "scans"],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["inventory", "session", sessionId, "exceptions"],
         });
         void queryClient.invalidateQueries({
           queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
@@ -821,6 +827,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
       playOutcomeSound(response.scan.outcome);
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "scans"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "exceptions"],
       });
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
@@ -1417,6 +1426,19 @@ function ScansPanel({
   );
 }
 
+function reviewDecisionStatusLine(
+  review: InventoryScan["decision"],
+): string | null {
+  if (!review || review.decision === null) {
+    return null;
+  }
+  const word = review.decision === "approved" ? "Approve" : "No action";
+  if (review.decided_by && review.decided_by.trim() !== "") {
+    return `${word} · ${review.decided_by}`;
+  }
+  return word;
+}
+
 function ExceptionReviewRow({
   sessionId,
   scan,
@@ -1435,14 +1457,12 @@ function ExceptionReviewRow({
   const [rowPending, setRowPending] = useState(false);
 
   useEffect(() => {
-    const action = scan.decision?.action;
-    if (action) {
-      setSelectedAction(action);
-    }
+    setSelectedAction(scan.decision?.action ?? "");
   }, [scan.id, scan.decision?.action]);
 
   const buttonsDisabled =
     !controlsEnabled || !selectedAction || rowPending;
+  const decisionStatus = reviewDecisionStatusLine(scan.decision);
 
   async function saveDecision(
     action: string,
@@ -1460,6 +1480,30 @@ function ExceptionReviewRow({
         },
       );
       setSelectedAction(response.action);
+      queryClient.setQueriesData<InventoryScanListResponse>(
+        { queryKey: ["inventory", "session", sessionId, "exceptions"] },
+        (cached) => {
+          if (!cached) {
+            return cached;
+          }
+          return {
+            ...cached,
+            items: cached.items.map((row) =>
+              row.id === response.scan_id
+                ? {
+                    ...row,
+                    decision: {
+                      action: response.action,
+                      decision: response.decision,
+                      decided_by: response.decided_by,
+                      decided_at: response.decided_at,
+                    },
+                  }
+                : row,
+            ),
+          };
+        },
+      );
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "audit"],
       });
@@ -1489,6 +1533,9 @@ function ExceptionReviewRow({
       <p className="text-sm text-foreground">{scan.title ?? NO_TITLE}</p>
       {scan.message ? (
         <p className="text-sm text-muted-foreground">{scan.message}</p>
+      ) : null}
+      {decisionStatus ? (
+        <p className="text-sm text-foreground">{decisionStatus}</p>
       ) : null}
       {pairs ? (
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
