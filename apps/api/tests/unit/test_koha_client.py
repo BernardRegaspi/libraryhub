@@ -1,3 +1,4 @@
+import json
 import logging
 
 import httpx
@@ -180,6 +181,92 @@ def test_patron_reads_send_embeds_and_a_plain_500_stays_a_response_error():
     assert embeds["/api/v1/patrons"] == "checkouts+count,overdues+count"
     assert embeds["/api/v1/patrons/4/checkouts"] == "item.biblio"
     assert embeds["/api/v1/patrons/4/holds"] == "biblio"
+
+
+def test_count_items_reads_total_count_header():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        assert request.url.path.endswith("/items")
+        assert request.method == "GET"
+        seen["q"] = request.url.params.get("q")
+        seen["per_page"] = request.url.params.get("_per_page")
+        return httpx.Response(200, json=[], headers={"X-Total-Count": "12"})
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    count = client.count_items(home_library_id="CPL", location="GEN")
+    assert count == 12
+    assert json.loads(seen["q"]) == {"home_library_id": "CPL", "location": "GEN"}
+    assert seen["per_page"] == "1"
+
+
+def test_count_items_without_location_omits_location_from_query():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        seen["q"] = request.url.params.get("q")
+        return httpx.Response(200, json=[], headers={"x-total-count": "3"})
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    assert client.count_items(home_library_id="CPL", location=None) == 3
+    assert json.loads(seen["q"]) == {"home_library_id": "CPL"}
+
+
+def test_count_items_missing_total_count_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        return httpx.Response(200, json=[])
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    try:
+        client.count_items(home_library_id="CPL", location="GEN")
+    except KohaResponseError:
+        pass
+    else:
+        raise AssertionError("expected KohaResponseError")
+
+
+def test_find_items_by_barcode_embeds_biblio_and_returns_dict_rows():
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        assert request.url.path.endswith("/items")
+        seen["external_id"] = request.url.params.get("external_id")
+        seen["per_page"] = request.url.params.get("_per_page")
+        seen["embed"] = request.headers.get("x-koha-embed")
+        return httpx.Response(
+            200,
+            json=[{"item_id": 1, "external_id": "BC-1"}, "skip", {"item_id": 2}],
+        )
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    rows = client.find_items_by_barcode("BC-1")
+    assert rows == [{"item_id": 1, "external_id": "BC-1"}, {"item_id": 2}]
+    assert seen["external_id"] == "BC-1"
+    assert seen["per_page"] == "2"
+    assert seen["embed"] == "biblio"
+
+
+def test_find_items_by_barcode_non_list_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        return httpx.Response(200, json={"unexpected": "shape"})
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    try:
+        client.find_items_by_barcode("BC-1")
+    except KohaResponseError:
+        pass
+    else:
+        raise AssertionError("expected KohaResponseError")
 
 
 def test_timeout_is_typed():

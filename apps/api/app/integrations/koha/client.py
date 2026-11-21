@@ -222,6 +222,29 @@ class KohaClient:
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)]
 
+    def count_items(self, *, home_library_id: str, location: str | None) -> int:
+        query: dict[str, str] = {"home_library_id": home_library_id}
+        if location is not None:
+            query["location"] = location
+        _body, headers = self.get_json("/items", {"q": json.dumps(query), "_per_page": 1})
+        raw = headers.get("X-Total-Count") or headers.get("x-total-count")
+        if raw is None:
+            raise KohaResponseError
+        try:
+            return int(raw)
+        except ValueError:
+            raise KohaResponseError
+
+    def find_items_by_barcode(self, barcode: str) -> list[dict]:
+        body, _headers = self.get_json(
+            "/items",
+            {"external_id": barcode, "_per_page": 2},
+            extra_headers={"x-koha-embed": "biblio"},
+        )
+        if not isinstance(body, list):
+            raise KohaResponseError
+        return [row for row in body if isinstance(row, dict)]
+
     def get_bytes(self, url: str) -> tuple[bytes, str]:
         with self._http() as client:
             token = self._bearer(client)
