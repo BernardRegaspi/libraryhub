@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import pytest
@@ -24,6 +25,14 @@ from app.services.inventory import (
 )
 
 PASSWORD = "local-secret"
+
+
+def _stamp(db, model, ids: list[str], attr: str) -> None:
+    base = datetime(2026, 11, 21, 8, 0, tzinfo=timezone.utc)
+    for index, raw_id in enumerate(ids):
+        row = db.get(model, UUID(raw_id))
+        setattr(row, attr, base + timedelta(seconds=index))
+    db.commit()
 
 
 class _FakeKoha:
@@ -248,6 +257,7 @@ def test_list_sessions_scoped_sorted_and_filtered(db):
     first = _create_draft(db, user, department_id, "Alpha shelf")
     second = _create_draft(db, user, department_id, "Beta shelf")
     _create_draft(db, user, other_department_id, "Other dept shelf")
+    _stamp(db, InventorySession, [first["id"], second["id"]], "created_at")
 
     listed = list_sessions(
         db,
@@ -765,7 +775,7 @@ def test_list_scans_filters_and_sorts(db):
     item_b = {**_AVAILABLE_ITEM, "item_id": 2, "external_id": "XYZ-2"}
     client = _FakeKoha(items_by_barcode={"abc-1": [item_a], "XYZ-2": [item_b]})
 
-    record_scan(
+    first_scan = record_scan(
         db,
         client,
         user_id=user.id,
@@ -774,7 +784,7 @@ def test_list_scans_filters_and_sorts(db):
         client_scan_id=uuid4(),
         barcode="abc-1",
     )
-    record_scan(
+    second_scan = record_scan(
         db,
         client,
         user_id=user.id,
@@ -782,6 +792,12 @@ def test_list_scans_filters_and_sorts(db):
         session_id=session_id,
         client_scan_id=uuid4(),
         barcode="XYZ-2",
+    )
+    _stamp(
+        db,
+        InventoryScan,
+        [first_scan["scan"]["id"], second_scan["scan"]["id"]],
+        "scanned_at",
     )
 
     listed = list_scans(
