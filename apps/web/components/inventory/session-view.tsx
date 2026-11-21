@@ -647,6 +647,9 @@ export function SessionView({ sessionId }: SessionViewProps) {
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "scans"],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
+      });
     },
     [queryClient, refreshPendingCount, sessionId],
   );
@@ -816,10 +819,22 @@ export function SessionView({ sessionId }: SessionViewProps) {
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "session", sessionId, "scans"],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "sidebar-scans"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "audit"],
+      });
     } catch {
       await refetchScansAndReconcile(clientScanId);
     }
   };
+
+  const invalidateSidebarAudit = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: ["inventory", "session", sessionId, "audit"],
+    });
+  }, [queryClient, sessionId]);
 
   async function onStartScanning() {
     setActionPending(true);
@@ -850,6 +865,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
         { method: "POST" },
       );
       await sessionQuery.refetch();
+      invalidateSidebarAudit();
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -870,6 +886,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
         { method: "POST" },
       );
       await sessionQuery.refetch();
+      invalidateSidebarAudit();
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -887,6 +904,8 @@ export function SessionView({ sessionId }: SessionViewProps) {
     const message = await downloadExceptionsCsv(sessionId);
     if (message) {
       setExportError(message);
+    } else {
+      invalidateSidebarAudit();
     }
     setExportPending(false);
   }
@@ -901,6 +920,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
       );
       setCancelOpen(false);
       await sessionQuery.refetch();
+      invalidateSidebarAudit();
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -1403,6 +1423,7 @@ function ExceptionReviewRow({
   scan: InventoryScan;
   controlsEnabled: boolean;
 }) {
+  const queryClient = useQueryClient();
   const pairs = actionsFor(scan.outcome);
   const [selectedAction, setSelectedAction] = useState(
     () => scan.decision?.action ?? "",
@@ -1436,6 +1457,9 @@ function ExceptionReviewRow({
         },
       );
       setSelectedAction(response.action);
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "session", sessionId, "audit"],
+      });
     } catch (caught) {
       const message =
         caught instanceof ApiError
