@@ -26,6 +26,7 @@ class SessionListParams(BaseModel):
 class ScanListParams(BaseModel):
     q: str = ""
     outcome: str | None = None
+    exceptions: bool = False
     page: int = 1
     per_page: int = 20
     sort: str = "scanned_at"

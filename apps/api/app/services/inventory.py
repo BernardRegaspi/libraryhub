@@ -636,7 +636,7 @@ def _validate_scan_list_params(params: ScanListParams) -> None:
             _raise(*_INVALID_SEARCH)
     q = params.q.strip()
     params.q = q
-    if q and not (1 <= len(q) <= 32):
+    if q and not (1 <= len(q) <= 80):
         _raise(*_INVALID_SEARCH)
     if not (1 <= params.page <= 10000):
         _raise(*_INVALID_SEARCH)
@@ -651,6 +651,8 @@ def _validate_scan_list_params(params: ScanListParams) -> None:
         _raise(*_INVALID_SEARCH)
     if outcome == "":
         params.outcome = None
+    if params.exceptions and params.outcome is not None:
+        _raise(*_INVALID_SEARCH)
 
 
 def _primary_for_item(db: Session, *, session_id: UUID, item_id: int) -> InventoryScan | None:
@@ -899,7 +901,17 @@ def list_scans(
         query = query.filter(InventoryScan.outcome == params.outcome)
     if params.q:
         pattern = f"%{escape_like(params.q)}%"
-        query = query.filter(InventoryScan.barcode.like(pattern, escape="\\"))
+        query = query.filter(
+            or_(
+                InventoryScan.barcode.like(pattern, escape="\\"),
+                InventoryScan.title.like(pattern, escape="\\"),
+            )
+        )
+    if params.exceptions:
+        query = query.filter(
+            InventoryScan.is_primary.is_(True),
+            InventoryScan.outcome != "verified",
+        )
 
     sort_col = _SCAN_SORT_COLUMNS[params.sort]
     if params.direction == "desc":

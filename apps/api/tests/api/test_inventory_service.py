@@ -868,6 +868,88 @@ def test_list_scans_invalid_search_and_department(db):
     assert exc.value.code == "not_found"
 
 
+def test_list_scans_matches_title_and_exceptions(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    client = _FakeKoha(
+        items_by_barcode={
+            "ITEM-101": [_AVAILABLE_ITEM],
+            "GONE": [],
+        }
+    )
+    record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="ITEM-101",
+    )
+    record_scan(
+        db,
+        client,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+        client_scan_id=uuid4(),
+        barcode="GONE",
+    )
+
+    by_title = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(q="Intro Python"),
+    )
+    assert [item["barcode"] for item in by_title["items"]] == ["ITEM-101"]
+
+    exceptions = list_scans(
+        db,
+        department_id=department_id,
+        session_id=session_id,
+        params=ScanListParams(exceptions=True),
+    )
+    assert [item["outcome"] for item in exceptions["items"]] == ["not_found"]
+
+    with pytest.raises(InventoryError) as exc:
+        list_scans(
+            db,
+            department_id=department_id,
+            session_id=session_id,
+            params=ScanListParams(q="x" * 81),
+        )
+    assert exc.value.code == "invalid_search"
+
+    with pytest.raises(InventoryError) as exc:
+        list_scans(
+            db,
+            department_id=department_id,
+            session_id=session_id,
+            params=ScanListParams(outcome="not_found", exceptions=True),
+        )
+    assert exc.value.status_code == 422
+    assert exc.value.code == "invalid_search"
+    assert exc.value.message == "That search is not valid."
+
+
+def test_list_sessions_accepts_in_review(db):
+    user, department_id = _user_and_department(db)
+    _started, session_id = _started_session(db, user, department_id)
+    finish_session(
+        db,
+        user_id=user.id,
+        department_id=department_id,
+        session_id=session_id,
+    )
+    listed = list_sessions(
+        db,
+        department_id=department_id,
+        params=SessionListParams(status="in_review"),
+    )
+    assert [item["id"] for item in listed["items"]] == [str(session_id)]
+
+
 def test_finish_and_resume_session(db):
     user, department_id = _user_and_department(db)
     started, session_id = _started_session(db, user, department_id)
