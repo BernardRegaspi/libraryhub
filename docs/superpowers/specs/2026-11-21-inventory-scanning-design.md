@@ -1,7 +1,7 @@
 # Inventory scanning
 
 Date: 2026-11-21
-Status: pending review
+Status: approved
 
 ## Purpose
 

@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventory & Stocktaking · USANT Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['Inter','sans-serif'], serif: ['"Source Serif 4"','serif'], mono: ['"JetBrains Mono"','monospace'] },
+  colors: { maroon: { 50:'#fbf1f1',100:'#f5dede',600:'#9b1c1c',700:'#7f1818',800:'#6a1414',900:'#3f0b0b',950:'#2a0707' }, gold:{400:'#f4b73f',500:'#e9a21c'}, paper:'#faf7f4' }
+}}}
+</script>
+<style>
+  body{background:#faf7f4}
+  .scroll-thin::-webkit-scrollbar{width:6px;height:6px}.scroll-thin::-webkit-scrollbar-thumb{background:#d9cfc9;border-radius:9px}
+  @keyframes pop{0%{background:#fff3cf}100%{background:transparent}} .flash{animation:pop 1.4s ease-out}
+  .nav a{display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;border-radius:.5rem;font-size:13px;font-weight:600;color:#f1dcdc}
+  .nav a:hover{background:rgba(255,255,255,.06)} .nav a.on{background:#5b2a0c;color:#f4b73f;box-shadow:inset 0 0 0 1px #8a4a14}
+  .nav h6{font-size:10px;letter-spacing:.14em;color:#b98a8a;font-weight:700;padding:.9rem .75rem .35rem}
+</style>
+</head>
+<body class="font-sans text-stone-800 antialiased">
+
+<!-- Sidebar -->
+<aside class="fixed inset-y-0 left-0 w-60 bg-maroon-950 hidden lg:flex flex-col">
+  <div class="h-16 px-4 flex items-center gap-3 border-b border-white/10">
+    <div class="w-9 h-9 rounded-lg bg-gold-400 text-maroon-900 grid place-items-center font-bold">U</div>
+    <div><div class="font-serif text-white font-bold leading-4">USANT Library</div><div class="text-[9px] tracking-[.18em] text-gold-400 font-semibold">MANAGEMENT SYSTEM</div></div>
+  </div>
+  <nav class="nav flex-1 overflow-y-auto scroll-thin px-3 pb-4">
+    <h6>OVERVIEW</h6><a href="#">Dashboard</a><a href="#">Reports & Analytics</a><a href="#">Visitor Statistics</a>
+    <h6>LIBRARY OPERATIONS</h6><a href="#">Catalog Search</a><a href="#">Cataloguing</a><a href="#">Book Circulation</a><a href="#">Reservations</a><a href="#">Fines & Payments</a>
+    <h6>COLLECTIONS</h6><a href="#">Acquisitions</a><a href="#">Serials & Periodicals</a><a href="#" class="on">Inventory</a><a href="#">Documents</a>
+    <h6>PATRON SERVICES</h6><a href="#">Patrons</a><a href="#">Student Portal Mgmt</a><a href="#">Library Services</a><a href="#">Facilities & Reservations</a>
+    <a href="#" class="justify-between">Notifications <span class="bg-gold-400 text-maroon-900 text-[10px] rounded-full px-1.5">5</span></a>
+    <h6>ADMINISTRATION</h6><a href="#">Settings</a>
+  </nav>
+  <div class="p-3 border-t border-white/10 flex items-center gap-3">
+    <div class="w-9 h-9 rounded-full bg-maroon-600 text-white text-xs font-bold grid place-items-center">LF</div>
+    <div class="text-white text-sm font-semibold leading-4">Ms. Liza Fernandez<div class="text-[11px] font-normal text-white/60">Librarian</div></div>
+  </div>
+</aside>
+
+<div class="lg:pl-60">
+  <header class="h-16 bg-white border-b border-stone-200 px-6 flex items-center justify-between sticky top-0 z-20">
+    <input class="w-96 max-w-full rounded-lg border border-stone-300 px-3 py-2 text-sm" placeholder="Search books, patrons, records…">
+    <div class="text-xs text-stone-600 hidden md:block">Saturday, November 21, 2026</div>
+  </header>
+
+  <main class="px-6 py-6 max-w-[1500px] mx-auto">
+    <div class="text-xs text-stone-500">Home › Module › <b class="text-stone-800">Inventory Management</b></div>
+    <div class="flex flex-wrap items-end justify-between gap-3 mt-1 mb-5">
+      <div>
+        <h1 class="font-serif text-3xl font-bold text-stone-900">Inventory & Stocktaking</h1>
+        <p class="text-sm text-stone-600">Plan, scan and reconcile shelf checks against Koha item records. Item status changes stay in Koha.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="btnExport" class="px-3.5 py-2 rounded-lg border border-stone-300 bg-white text-sm font-semibold hover:bg-stone-50">Export exceptions (CSV)</button>
+        <button id="btnNew" class="px-4 py-2 rounded-lg bg-maroon-700 hover:bg-maroon-800 text-white text-sm font-semibold shadow">+ New stocktake</button>
+      </div>
+    </div>
+
+    <!-- Active session header + stepper -->
+    <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-5 mb-5">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="sId" class="font-serif text-xl font-bold"></h2>
+            <span id="sBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full"></span>
+          </div>
+          <div id="sMeta" class="text-sm text-stone-600 mt-1"></div>
+        </div>
+        <div id="sActions" class="flex gap-2"></div>
+      </div>
+      <ol id="stepper" class="grid grid-cols-4 gap-2 mt-5"></ol>
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-stone-600 mb-1"><span>Scan progress</span><span id="pTxt"></span></div>
+        <div class="h-2 bg-stone-100 rounded-full overflow-hidden"><div id="pBar" class="h-full bg-maroon-700 transition-all"></div></div>
+      </div>
+    </section>
+
+    <!-- KPIs -->
+    <div id="kpis" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-5"></div>
+
+    <div class="grid xl:grid-cols-3 gap-5">
+      <div class="xl:col-span-2 space-y-5">
+        <!-- Scan panel -->
+        <section id="scanPanel" class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-serif text-lg font-bold">Scan barcodes</h3>
+            <span class="text-xs flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Scanner ready · keyboard-wedge</span>
+          </div>
+          <form id="scanForm" class="grid sm:grid-cols-[1fr_220px_auto] gap-2">
+            <input id="scanInput" autocomplete="off" class="font-mono rounded-lg border-2 border-stone-300 focus:border-maroon-700 outline-none px-3 py-2.5 text-sm" placeholder="Scan or type barcode, then Enter  (e.g. BK-1001)">
+            <select id="scanLoc" class="rounded-lg border border-stone-300 px-3 py-2.5 text-sm"></select>
+            <button class="px-5 rounded-lg bg-maroon-700 text-white font-semibold text-sm hover:bg-maroon-800">Record scan</button>
+          </form>
+          <div class="flex items-center gap-2 mt-2 text-xs text-stone-500 flex-wrap">
+            <label class="flex items-center gap-1.5"><input id="scanDmg" type="checkbox" class="accent-maroon-700"> Mark this item as physically damaged</label>
+            <span class="mx-1">·</span><span>Try:</span>
+            <button type="button" data-q="BK-1002" class="q px-2 py-0.5 rounded bg-stone-100 font-mono">BK-1002</button>
+            <button type="button" data-q="BK-2001" class="q px-2 py-0.5 rounded bg-stone-100 font-mono">BK-2001</button>
+            <button type="button" data-q="BK-9999" class="q px-2 py-0.5 rounded bg-stone-100 font-mono">BK-9999</button>
+            <button type="button" id="demo" class="ml-auto px-2.5 py-1 rounded border border-stone-300 hover:bg-stone-50">Simulate 5 scans</button>
+          </div>
+          <div id="lastScan" class="mt-3 hidden"></div>
+        </section>
+
+        <!-- Reconciliation -->
+        <section class="bg-white rounded-xl border border-stone-200 shadow-sm">
+          <div class="px-5 pt-5 pb-3 flex flex-wrap items-center justify-between gap-2">
+            <div><h3 class="font-serif text-lg font-bold">Reconciliation</h3><p class="text-xs text-stone-500">Scanned items compared with expected Koha item records</p></div>
+            <input id="q" class="rounded-lg border border-stone-300 px-3 py-1.5 text-sm w-56" placeholder="Search barcode or title…">
+          </div>
+          <div id="chips" class="px-5 pb-3 flex flex-wrap gap-1.5"></div>
+          <div class="overflow-x-auto scroll-thin">
+            <table class="w-full text-sm">
+              <thead class="bg-stone-50 text-[11px] tracking-wider text-stone-500 uppercase"><tr>
+                <th class="text-left px-5 py-2.5">Item</th><th class="text-left px-3">Expected shelf</th><th class="text-left px-3">Result</th><th class="text-left px-3">Last seen</th><th class="text-left px-3">Operator</th><th class="px-3"></th></tr></thead>
+              <tbody id="rows" class="divide-y divide-stone-100"></tbody>
+            </table>
+          </div>
+          <div id="rowsFoot" class="px-5 py-3 text-xs text-stone-500 border-t border-stone-100"></div>
+        </section>
+
+        <!-- Review -->
+        <section id="reviewPanel" class="bg-white rounded-xl border border-stone-200 shadow-sm">
+          <div class="px-5 pt-5 pb-3 flex flex-wrap items-start justify-between gap-3">
+            <div><h3 class="font-serif text-lg font-bold">Exception review & adjustments</h3>
+              <p class="text-xs text-stone-500">A missing scan never changes an item's status. A librarian must review each exception.</p></div>
+            <button id="btnSubmit" class="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-semibold hover:bg-maroon-800 disabled:opacity-40 disabled:cursor-not-allowed"></button>
+          </div>
+          <div class="mx-5 mb-3 text-xs rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 flex gap-2">
+            <span>ⓘ</span><span>Adjustments are submitted to <b>Koha</b> only when write access is authorized for your account. Otherwise export the list and apply changes in Koha manually. ULMS keeps the scan session and review audit trail in PostgreSQL.</span>
+          </div>
+          <div id="review" class="divide-y divide-stone-100 border-t border-stone-100"></div>
+        </section>
+      </div>
+
+      <!-- Right column -->
+      <div class="space-y-5">
+        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+          <h3 class="font-serif text-lg font-bold mb-3">Recent scans</h3>
+          <ul id="recent" class="space-y-2 max-h-72 overflow-y-auto scroll-thin"></ul>
+        </section>
+        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+          <h3 class="font-serif text-lg font-bold mb-3">Audit trail</h3>
+          <ol id="audit" class="relative border-l border-stone-200 ml-1.5 space-y-4 max-h-80 overflow-y-auto scroll-thin pr-1"></ol>
+        </section>
+        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+          <h3 class="font-serif text-lg font-bold mb-3">Stocktake history</h3>
+          <div id="history" class="space-y-3"></div>
+        </section>
+      </div>
+    </div>
+    <p class="text-[11px] text-stone-400 mt-8 text-right">All records are simulated sample data stored in this browser.</p>
+  </main>
+</div>
+
+<!-- New stocktake modal -->
+<div id="modal" class="fixed inset-0 z-50 hidden bg-black/40 grid place-items-center p-4">
+  <form id="newForm" class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+    <h3 class="font-serif text-xl font-bold">Plan a stocktake</h3>
+    <p class="text-sm text-stone-500 mb-4">Defines the expected item list pulled from Koha.</p>
+    <div class="grid grid-cols-2 gap-3 text-sm">
+      <label class="col-span-2">Library / department<select name="dept" class="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2"></select></label>
+      <label>Collection<select name="coll" class="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2"></select></label>
+      <label>Location / shelf prefix<select name="loc" class="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2"></select></label>
+      <label class="col-span-2">Notes<input name="note" class="mt-1 w-full border border-stone-300 rounded-lg px-3 py-2" placeholder="Optional"></label>
+    </div>
+    <div id="planPreview" class="mt-4 text-sm rounded-lg bg-stone-50 border border-stone-200 p-3"></div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button type="button" id="mCancel" class="px-4 py-2 rounded-lg border border-stone-300 text-sm font-semibold">Cancel</button>
+      <button class="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-semibold">Create session</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const OPERATOR = 'Liza Fernandez';
+const KEY = 'usant-stocktake-v2';
+const $ = s => document.querySelector(s);
+const now = () => new Date().toISOString();
+const fmt = iso => iso ? new Date(iso).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---- Mock "Koha" catalogue (read-only source of truth) ----
+const KOHA = [
+ ['BK-1001','Noli Me Tangere','FIC-RIZ-01','College','Fiction','available'],
+ ['BK-1002','El Filibusterismo','FIC-RIZ-02','College','Fiction','available'],
+ ['BK-1003','Fundamentals of Nursing','REF-NUR-01','College','Reference','available'],
+ ['BK-1004','Fundamentals of Nursing','REF-NUR-01','College','Reference','available'],
+ ['BK-1005','Human Anatomy & Physiology','SCI-ANA-01','College','Science','available'],
+ ['BK-1006','Medical-Surgical Nursing','NUR-02','College','Nursing','available'],
+ ['BK-1007','Medical-Surgical Nursing','NUR-02','College','Nursing','available'],
+ ['BK-1008','Introduction to Algorithms','IT-ALG-01','College','Computing','available'],
+ ['BK-1009','Introduction to Algorithms','IT-ALG-01','College','Computing','available'],
+ ['BK-1010','Clean Code','IT-SE-01','College','Computing','available'],
+ ['BK-1011','Clean Code','IT-SE-01','College','Computing','available'],
+ ['BK-1012','The Pragmatic Programmer','IT-SE-02','College','Computing','available'],
+ ['BK-1013','The Philippines: A Past Revisited','HIS-PH-01','College','History','available'],
+ ['BK-1014','Oral Communication in Context','LNG-ORC-01','College','Language','available'],
+ ['BK-1015','Introduction to Criminology','CRI-01','College','Criminology','available'],
+ ['BK-1016','Database System Concepts','IT-DB-01','College','Computing','available'],
+ ['BK-1017','Operating System Concepts','IT-OS-01','College','Computing','available'],
+ ['BK-1018','Medical-Surgical Nursing','NUR-02','College','Nursing','withdrawn'],
+ ['BK-1019','Pharmacology Essentials','NUR-03','College','Nursing','available'],
+ ['BK-1020','Computer Networking','IT-NET-01','College','Computing','available'],
+ ['BK-2001','Filipino 9: Panitikang Panlipunan','JHS-FIL-01','Junior High School','Textbook','available'],
+ ['BK-2002','Science 8','JHS-SCI-01','Junior High School','Textbook','available'],
+ ['BK-3001','Calculus: Early Transcendentals','SHS-MAT-01','Senior High School','Textbook','available'],
+].map(([barcode,title,shelf,dept,coll,status])=>({barcode,title,shelf,dept,coll,status}));
+const byCode = Object.fromEntries(KOHA.map(k=>[k.barcode,k]));
+
+// ---- State ----
+const RESULT = {
+  found:{l:'Found',c:'bg-emerald-50 text-emerald-700'}, pending:{l:'Not yet scanned',c:'bg-stone-100 text-stone-600'},
+  notfound:{l:'Not found',c:'bg-amber-50 text-amber-800'}, misplaced:{l:'Misplaced',c:'bg-sky-50 text-sky-700'},
+  unexpected:{l:'Unexpected',c:'bg-violet-50 text-violet-700'}, damaged:{l:'Damaged',c:'bg-rose-50 text-rose-700'},
+  withdrawn:{l:'Withdrawn',c:'bg-stone-200 text-stone-700'}
+};
+const SUGGEST = {
+  notfound:['Keep status; search again','Request Koha status review (lost)'],
+  misplaced:['Reshelve to expected location','Update location in Koha'],
+  unexpected:['Check item record in Koha','Reshelve to home collection'],
+  damaged:['Send for repair / rebinding','Request Koha status review (damaged)'],
+  withdrawn:['Remove from shelf','Confirm withdrawal in Koha']
+};
+let S, ui = {filter:'all', q:''};
+
+function newSession(id, dept, coll, loc, note, status){
+  const exp = KOHA.filter(k=>k.dept===dept && k.status!=='on loan' && (coll==='All collections'||k.coll===coll) && (loc==='All locations'||k.shelf.startsWith(loc)));
+  return { id, dept, coll, loc, note:note||'', status:status||'planned', created:now(), by:OPERATOR,
+    expected: exp.map(k=>k.barcode), scans:[], decisions:{}, submitted:[], audit:[{t:now(),who:OPERATOR,a:`Planned ${id}: ${dept} · ${coll} · ${loc} (${exp.length} expected items)`}] };
+}
+function seed(){
+  const s = newSession('ST-2026-04','College','All collections','All locations','Year-end shelf check','scanning');
+  s.audit.push({t:now(),who:OPERATOR,a:'Started scanning'});
+  [['BK-1001','FIC-RIZ-01'],['BK-1002','FIC-RIZ-02'],['BK-1003','REF-NUR-01'],['BK-1005','SCI-ANA-01'],['BK-1008','IT-ALG-01'],['BK-1010','IT-SE-01'],['BK-1016','IT-NET-01']].forEach(([c,l])=>addScan(s,c,l,false,true));
+  return s;
+}
+function load(){ try{ const r=JSON.parse(localStorage.getItem(KEY)); if(r&&r.S) return r; }catch(e){} return null }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify({S,history:HISTORY})) }catch(e){} }
+let HISTORY = [
+ {id:'ST-2026-03',date:'Oct 18, 2026',by:'Eduardo Santos',scope:'College Library — partial (Nursing & IT)',verified:1420,missing:12,damaged:9,acc:97.9},
+ {id:'ST-2026-02',date:'Aug 14, 2026',by:'Ramon Delgado',scope:'Graduate School Library — full',verified:610,missing:1,damaged:1,acc:99.7},
+ {id:'ST-2026-01',date:'Mar 10, 2026',by:'Juanito Reyes',scope:'Senior High School Library — full',verified:1105,missing:9,damaged:7,acc:98.6}];
+const saved = load(); if(saved){S=saved.S;HISTORY=saved.history||HISTORY} else {S=seed()}
+
+// ---- Core logic ----
+function addScan(s, code, loc, damaged, silent){
+  const k = byCode[code]; const exp = s.expected.includes(code);
+  let r;
+  if(!k) r='unexpected';
+  else if(!exp) r='unexpected';
+  else if(k.status==='withdrawn') r='withdrawn';
+  else if(damaged) r='damaged';
+  else if(loc!==k.shelf) r='misplaced';
+  else r='found';
+  if(k && exp && k.status==='withdrawn') r='withdrawn';
+  const dup = s.scans.find(x=>x.code===code);
+  const rec = {code,loc,r,t:now(),who:OPERATOR};
+  if(dup){ Object.assign(dup,rec); } else s.scans.unshift(rec);
+  if(!silent) s.audit.unshift({t:now(),who:OPERATOR,a:`Scanned ${code} at ${loc} → ${RESULT[r].l}`});
+  return rec;
+}
+function rowsFor(s){
+  const out=[];
+  s.expected.forEach(c=>{ const k=byCode[c]; const sc=s.scans.find(x=>x.code===c);
+    let r = sc?sc.r:(s.status==='planned'||s.status==='scanning'?'pending':'notfound');
+    out.push({code:c,title:k.title,shelf:k.shelf,r,t:sc?.t,who:sc?.who,loc:sc?.loc}); });
+  s.scans.filter(x=>!s.expected.includes(x.code)).forEach(sc=>{ const k=byCode[sc.code];
+    out.push({code:sc.code,title:k?k.title:'Unknown barcode — no Koha record',shelf:k?k.shelf:'—',r:'unexpected',t:sc.t,who:sc.who,loc:sc.loc}) });
+  return out;
+}
+const isExc = r => !['found','pending'].includes(r);
+function counts(s){ const rows=rowsFor(s), c={expected:s.expected.length,found:0,pending:0,notfound:0,misplaced:0,unexpected:0,damaged:0,withdrawn:0};
+  rows.forEach(r=>c[r.r]++); c.scanned = s.scans.length; return c; }
+
+// ---- Render ----
+function render(){
+  const c=counts(S), rows=rowsFor(S);
+  $('#sId').textContent=S.id;
+  const B={planned:['Planned','bg-stone-100 text-stone-700'],scanning:['Scanning','bg-sky-50 text-sky-700'],review:['In review','bg-amber-50 text-amber-800'],closed:['Closed','bg-emerald-50 text-emerald-700']}[S.status];
+  $('#sBadge').textContent=B[0]; $('#sBadge').className='text-[11px] font-semibold px-2 py-0.5 rounded-full '+B[1];
+  $('#sMeta').textContent=`${S.dept} Library · ${S.coll} · ${S.loc} · started ${fmt(S.created)} by ${S.by}${S.note?' · “'+S.note+'”':''}`;
+
+  const steps=['Plan','Scan','Review','Submit'], idx={planned:0,scanning:1,review:2,closed:4}[S.status];
+  $('#stepper').innerHTML=steps.map((t,i)=>{const done=i<idx,cur=i===idx;
+    return `<li class="flex items-center gap-2"><span class="w-6 h-6 rounded-full grid place-items-center text-xs font-bold ${done?'bg-maroon-700 text-white':cur?'bg-gold-400 text-maroon-900':'bg-stone-100 text-stone-500'}">${done?'✓':i+1}</span><span class="text-sm ${cur?'font-bold':'text-stone-600'}">${t}</span><span class="flex-1 h-px ${done?'bg-maroon-700':'bg-stone-200'}"></span></li>`}).join('');
+
+  const A=$('#sActions');
+  A.innerHTML = S.status==='planned'?`<button data-act="start" class="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-semibold">Start scanning</button>`
+   : S.status==='scanning'?`<button data-act="finish" class="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-semibold">Finish scanning → review</button>`
+   : S.status==='review'?`<button data-act="reopen" class="px-3.5 py-2 rounded-lg border border-stone-300 text-sm font-semibold">Back to scanning</button><button data-act="close" class="px-4 py-2 rounded-lg bg-maroon-700 text-white text-sm font-semibold">Close session</button>`
+   : `<span class="text-sm text-emerald-700 font-semibold">Session closed</span>`;
+
+  const seen=c.expected-c.pending-c.notfound;
+  $('#pTxt').textContent=`${seen} of ${c.expected} expected items seen · ${c.scanned} scans`;
+  $('#pBar').style.width=(c.expected?seen/c.expected*100:0)+'%';
+
+  const K=[['Expected',c.expected,'text-stone-900','Koha records'],['Found',c.found,'text-emerald-700','in place'],['Not found',c.notfound+(S.status==='scanning'?c.pending:0),'text-amber-700',S.status==='scanning'?'not yet seen':'after close'],
+    ['Misplaced',c.misplaced,'text-sky-700','wrong shelf'],['Unexpected',c.unexpected,'text-violet-700','not in scope'],['Damaged',c.damaged,'text-rose-700','flagged'],['Withdrawn',c.withdrawn,'text-stone-600','still on shelf']];
+  $('#kpis').innerHTML=K.map(k=>`<div class="bg-white rounded-xl border border-stone-200 shadow-sm px-4 py-3"><div class="text-[11px] tracking-wider uppercase text-stone-500 font-semibold">${k[0]}</div><div class="font-serif text-3xl font-bold ${k[2]}">${k[1]}</div><div class="text-[11px] text-stone-400">${k[3]}</div></div>`).join('');
+
+  // scan panel
+  const locs=[...new Set(S.expected.map(x=>byCode[x].shelf))].sort();
+  const cur=$('#scanLoc').value;
+  $('#scanLoc').innerHTML=`<option disabled>Shelf being scanned</option>`+locs.map(l=>`<option ${l===cur?'selected':''}>${l}</option>`).join('');
+  const canScan=S.status==='scanning';
+  $('#scanInput').disabled=!canScan; $('#scanPanel').classList.toggle('opacity-60',!canScan);
+  $('#scanInput').placeholder=canScan?'Scan or type barcode, then Enter  (e.g. BK-1001)':'Start scanning to enable input';
+
+  // chips
+  const fl=['all','exceptions','found','pending','notfound','misplaced','unexpected','damaged','withdrawn'];
+  const cnt=f=>f==='all'?rows.length:f==='exceptions'?rows.filter(r=>isExc(r.r)).length:rows.filter(r=>r.r===f).length;
+  $('#chips').innerHTML=fl.map(f=>`<button data-f="${f}" class="px-2.5 py-1 rounded-full text-xs font-semibold border ${ui.filter===f?'bg-maroon-700 text-white border-maroon-700':'bg-white text-stone-600 border-stone-300 hover:bg-stone-50'}">${f==='all'?'All':f==='exceptions'?'Exceptions':RESULT[f].l} · ${cnt(f)}</button>`).join('');
+
+  const q=ui.q.toLowerCase();
+  const shown=rows.filter(r=>(ui.filter==='all'||(ui.filter==='exceptions'?isExc(r.r):r.r===ui.filter))&&(!q||(r.code+r.title).toLowerCase().includes(q)));
+  $('#rows').innerHTML=shown.map(r=>`<tr class="hover:bg-stone-50 ${r.code===ui.flash?'flash':''}"><td class="px-5 py-2.5"><div class="font-semibold">${esc(r.title)}</div><div class="font-mono text-[11px] text-stone-500">${r.code}</div></td>
+   <td class="px-3"><span class="font-mono text-xs bg-stone-100 rounded px-1.5 py-0.5">${r.shelf}</span>${r.loc&&r.loc!==r.shelf?`<div class="text-[11px] text-sky-700 mt-0.5">seen at ${r.loc}</div>`:''}</td>
+   <td class="px-3"><span class="text-xs font-semibold rounded-full px-2 py-0.5 ${RESULT[r.r].c}">${RESULT[r.r].l}</span></td>
+   <td class="px-3 text-xs text-stone-600">${fmt(r.t)}</td><td class="px-3 text-xs text-stone-600">${r.who||'—'}</td>
+   <td class="px-3 text-right">${isExc(r.r)?`<button data-rev="${r.code}" class="text-xs text-maroon-700 font-semibold hover:underline">Review</button>`:''}</td></tr>`).join('')||`<tr><td colspan="6" class="text-center text-stone-400 py-8">No items match.</td></tr>`;
+  $('#rowsFoot').textContent=`Showing ${shown.length} of ${rows.length} records`;
+
+  // review
+  const exc=rows.filter(r=>isExc(r.r));
+  const approvedPending=exc.filter(r=>S.decisions[r.code]?.d==='approved'&&!S.submitted.includes(r.code));
+  $('#btnSubmit').textContent=`Submit ${approvedPending.length} approved to Koha`;
+  $('#btnSubmit').disabled=!(approvedPending.length&&S.status==='review');
+  $('#reviewPanel').classList.toggle('hidden',false);
+  $('#review').innerHTML=exc.map(r=>{ const d=S.decisions[r.code]||{}, sub=S.submitted.includes(r.code), opts=SUGGEST[r.r]; const lock=S.status!=='review'||sub;
+    return `<div id="rev-${r.code}" class="px-5 py-3 grid md:grid-cols-[1.2fr_1.3fr_auto] gap-3 items-center">
+      <div><div class="text-sm font-semibold">${esc(r.title)}</div><div class="text-[11px] text-stone-500"><span class="font-mono">${r.code}</span> · <span class="font-semibold rounded-full px-1.5 ${RESULT[r.r].c}">${RESULT[r.r].l}</span></div></div>
+      <select data-act-sel="${r.code}" ${lock?'disabled':''} class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 disabled:bg-stone-50"><option value="">Proposed action…</option>${opts.map(o=>`<option ${d.action===o?'selected':''}>${o}</option>`).join('')}</select>
+      <div class="flex gap-1.5 justify-end">${sub?`<span class="text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2.5 py-1">Submitted to Koha</span>`:
+       `<button data-dec="${r.code}|approved" ${lock||!d.action?'disabled':''} class="px-2.5 py-1 rounded-lg text-xs font-semibold border ${d.d==='approved'?'bg-emerald-600 text-white border-emerald-600':'border-stone-300 hover:bg-emerald-50'} disabled:opacity-40">Approve</button>
+        <button data-dec="${r.code}|rejected" ${lock?'disabled':''} class="px-2.5 py-1 rounded-lg text-xs font-semibold border ${d.d==='rejected'?'bg-stone-700 text-white border-stone-700':'border-stone-300 hover:bg-stone-50'} disabled:opacity-40">No action</button>`}</div></div>`}).join('')
+    ||`<div class="px-5 py-8 text-center text-sm text-stone-400">No exceptions to review.</div>`;
+
+  // recent
+  $('#recent').innerHTML=S.scans.slice(0,12).map(s=>`<li class="flex items-center justify-between gap-2 text-sm"><div class="min-w-0"><span class="font-mono text-xs">${s.code}</span><div class="text-[11px] text-stone-500 truncate">${fmt(s.t)} · ${s.who}</div></div><span class="text-[11px] font-semibold rounded-full px-2 py-0.5 ${RESULT[s.r].c}">${RESULT[s.r].l}</span></li>`).join('')||'<li class="text-sm text-stone-400">No scans yet.</li>';
+  // audit
+  $('#audit').innerHTML=S.audit.slice(0,40).map(a=>`<li class="pl-4 relative"><span class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-maroon-700"></span><div class="text-xs text-stone-800">${esc(a.a)}</div><div class="text-[11px] text-stone-400">${fmt(a.t)} · ${esc(a.who)}</div></li>`).join('');
+  // history
+  const cur2=`<div class="rounded-lg border border-sky-200 bg-sky-50/40 p-3"><div class="flex justify-between"><b class="text-sm">${S.id}</b><span class="text-[11px] font-semibold text-sky-700">${B[0]}</span></div><div class="text-xs text-stone-600">${S.dept} · ${S.coll}</div></div>`;
+  $('#history').innerHTML=cur2+HISTORY.map(h=>`<div class="rounded-lg border border-stone-200 p-3"><div class="flex justify-between"><b class="text-sm">${h.id}</b><span class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 rounded-full px-2">completed</span></div><div class="text-[11px] text-stone-500">${h.date} · ${h.by}</div><div class="text-xs text-stone-600 mt-0.5">${h.scope}</div>
+    <div class="grid grid-cols-4 text-center mt-2 text-xs"><div><b class="block text-sm">${h.verified}</b>verified</div><div><b class="block text-sm">${h.missing}</b>missing</div><div><b class="block text-sm">${h.damaged}</b>damaged</div><div><b class="block text-sm text-emerald-700">${h.acc}%</b>accuracy</div></div></div>`).join('');
+  save();
+}
+
+// ---- Events ----
+function log(a){ S.audit.unshift({t:now(),who:OPERATOR,a}) }
+$('#scanForm').addEventListener('submit',e=>{ e.preventDefault(); if(S.status!=='scanning')return;
+  const code=$('#scanInput').value.trim().toUpperCase(); if(!code)return;
+  const rec=addScan(S,code,$('#scanLoc').value,$('#scanDmg').checked); ui.flash=code;
+  const k=byCode[code], c={found:'emerald',misplaced:'sky',unexpected:'violet',damaged:'rose',withdrawn:'stone'}[rec.r];
+  $('#lastScan').className='mt-3 rounded-lg border px-3 py-2 text-sm flex justify-between items-center bg-'+c+'-50 border-'+c+'-200';
+  $('#lastScan').innerHTML=`<span><b class="font-mono">${code}</b> · ${esc(k?k.title:'No Koha record for this barcode')}</span><b>${RESULT[rec.r].l}${rec.r==='misplaced'?' (belongs to '+k.shelf+')':''}</b>`;
+  $('#scanInput').value=''; $('#scanDmg').checked=false; render(); $('#scanInput').focus(); });
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t)return;
+  if(t.classList.contains('q')){ $('#scanInput').value=t.dataset.q; $('#scanInput').focus(); }
+  if(t.dataset.f){ ui.filter=t.dataset.f; render(); }
+  if(t.dataset.rev){ ui.filter='exceptions'; render(); document.getElementById('rev-'+t.dataset.rev)?.scrollIntoView({behavior:'smooth',block:'center'}); }
+  if(t.dataset.dec){ const [c,d]=t.dataset.dec.split('|'); S.decisions[c]={...S.decisions[c],d}; log(`${d==='approved'?'Approved':'Marked no action for'} ${c}: ${S.decisions[c].action||'—'}`); render(); }
+  if(t.id==='demo'&&S.status==='scanning'){ const todo=S.expected.filter(c=>!S.scans.find(s=>s.code===c)).slice(0,5);
+    todo.forEach((c,i)=>addScan(S,c,i===1?'NUR-03':byCode[c].shelf,i===3,false)); render(); }
+  const a=t.dataset.act;
+  if(a==='start'){S.status='scanning';log('Started scanning');render();setTimeout(()=>$('#scanInput').focus(),50)}
+  if(a==='finish'){ if(!confirm('Finish scanning? Items not scanned will be listed as “Not found” for review only — their status will NOT change in Koha.'))return; S.status='review'; log('Finished scanning; moved to exception review'); render(); }
+  if(a==='reopen'){S.status='scanning';log('Re-opened scanning');render()}
+  if(a==='close'){ const c=counts(S); S.status='closed'; log('Closed session');
+    HISTORY.unshift({id:S.id,date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),by:OPERATOR,scope:`${S.dept} Library — ${S.coll}`,verified:c.found,missing:c.notfound,damaged:c.damaged,acc:+(c.found/Math.max(1,c.expected)*100).toFixed(1)}); render(); }
+});
+$('#rows').closest('section').addEventListener('input',e=>{ if(e.target.id==='q'){ui.q=e.target.value;render()} });
+document.addEventListener('change',e=>{ const c=e.target.dataset.actSel; if(c){ S.decisions[c]={...S.decisions[c],action:e.target.value,d:undefined}; render(); }});
+$('#btnSubmit').onclick=()=>{ const ids=Object.entries(S.decisions).filter(([c,d])=>d.d==='approved'&&!S.submitted.includes(c)).map(([c])=>c);
+  if(!confirm(`Submit ${ids.length} approved adjustment(s) to Koha? Koha remains the source of truth for item status.`))return;
+  ids.forEach(c=>{S.submitted.push(c);log(`Submitted to Koha: ${c} — ${S.decisions[c].action}`)}); render(); };
+$('#btnExport').onclick=()=>{ const rows=rowsFor(S).filter(r=>isExc(r.r)||r.r==='pending');
+  const head=['barcode','title','expected_shelf','result','seen_at','last_seen','operator','proposed_action','decision'];
+  const csv=[head,...rows.map(r=>[r.code,r.title,r.shelf,RESULT[r.r].l,r.loc||'',r.t||'',r.who||'',S.decisions[r.code]?.action||'',S.decisions[r.code]?.d||''])].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=S.id+'-exceptions.csv'; a.click(); log('Exported exception list (CSV)'); render(); };
+
+// New stocktake modal
+const depts=[...new Set(KOHA.map(k=>k.dept))];
+function fillModal(){ const f=$('#newForm'), d=f.dept.value||depts[0];
+  f.dept.innerHTML=depts.map(x=>`<option ${x===d?'selected':''}>${x}</option>`).join('');
+  const items=KOHA.filter(k=>k.dept===f.dept.value);
+  const colls=['All collections',...new Set(items.map(k=>k.coll))], keep=f.coll.value;
+  f.coll.innerHTML=colls.map(x=>`<option ${x===keep?'selected':''}>${x}</option>`).join('');
+  const locs=['All locations',...new Set(items.map(k=>k.shelf.split('-')[0]))], k2=f.loc.value;
+  f.loc.innerHTML=locs.map(x=>`<option ${x===k2?'selected':''}>${x}</option>`).join('');
+  const p=newSession('x',f.dept.value,f.coll.value,f.loc.value);
+  $('#planPreview').innerHTML=`<b>${p.expected.length}</b> items will be expected from Koha. On-loan items are excluded.`; }
+$('#btnNew').onclick=()=>{ $('#modal').classList.remove('hidden'); $('#modal').classList.add('grid'); fillModal(); };
+$('#mCancel').onclick=()=>{ $('#modal').classList.add('hidden'); $('#modal').classList.remove('grid'); };
+$('#newForm').addEventListener('change',fillModal);
+$('#newForm').addEventListener('submit',e=>{ e.preventDefault(); const f=e.target;
+  if(S.status!=='closed'&&!confirm('Replace the current open session? Its scan data in this prototype will be discarded.'))return;
+  const n=HISTORY.length+(S.status==='closed'?2:1)+1;
+  S=newSession('ST-2026-'+String(5+Math.floor(Math.random()*90)).padStart(2,'0'),f.dept.value,f.coll.value,f.loc.value,f.note.value);
+  ui={filter:'all',q:''}; $('#mCancel').click(); render(); });
+render();
+</script>
+</body>
+</html>

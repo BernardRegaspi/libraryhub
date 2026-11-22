@@ -5578,9 +5578,10 @@
             green: ["#E7F6EC", "#157F3D"],
             red: ["#FDECEA", "#B42318"],
             blue: ["#E9F1FB", "#1D4E89"],
+            amber: ["#FDF3DC", "#92670A"],
             gray: ["#EFEDE9", "#6B625F"],
           };
-          const t = tones[c.tone || "maroon"];
+          const t = tones[c.tone || "maroon"] || tones.maroon;
           return (
             '<div class="card stat-card p-4"><div class="flex items-start justify-between gap-2">' +
             '<div><div class="text-[11px] font-semibold uppercase tracking-wider text-muted">' +
