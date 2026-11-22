@@ -9,11 +9,8 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { SearchIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,19 +21,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CatalogPagination } from "@/components/catalog/catalog-pagination";
+import { ExceptionReviewPanel } from "@/components/inventory/exception-review";
 import { InventoryKpis } from "@/components/inventory/inventory-kpis";
+import {
+  DEFAULT_SCAN_FILTER,
+  ScansPanel,
+  type ScanListFilter,
+} from "@/components/inventory/scans-panel";
 import { SessionCard } from "@/components/inventory/session-card";
+import { SessionSidebar } from "@/components/inventory/session-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchApi, getApiBaseUrl } from "@/lib/api";
-import { actionsFor } from "@/lib/inventory/actions";
 import { createScanQueue } from "@/lib/inventory/queue";
 import type {
   InventoryScan,
@@ -45,7 +40,6 @@ import type {
   InventorySession,
   InventorySessionCounters,
   InventorySessionListResponse,
-  InventorySessionStatus,
 } from "@/lib/inventory/types";
 
 const ZERO_COUNT_COPY =
@@ -66,74 +60,14 @@ const SCAN_SOUND_KEY = "libraryhub.inventory.scanSound";
 
 const MAX_IN_FLIGHT = 2;
 
-const OUTCOME_FILTER_OPTIONS: { value: InventoryScanOutcome; label: string }[] =
-  [
-    { value: "verified", label: "Verified" },
-    { value: "misplaced", label: "Misplaced" },
-    { value: "unexpected", label: "Unexpected" },
-    { value: "not_found", label: "Not found" },
-    { value: "withdrawn", label: "Withdrawn" },
-    { value: "damaged", label: "Damaged" },
-    { value: "other_exception", label: "Other exception" },
-    { value: "duplicate", label: "Duplicate" },
-  ];
-
-type ScanListFilter =
-  | { kind: "all" }
-  | { kind: "exceptions" }
-  | { kind: "outcome"; outcome: InventoryScanOutcome };
-
-const DEFAULT_SCAN_FILTER: ScanListFilter = { kind: "all" };
-
-const SCAN_FILTER_CHIPS: { label: string; filter: ScanListFilter }[] = [
-  { label: "All", filter: { kind: "all" } },
-  { label: "Exceptions", filter: { kind: "exceptions" } },
-  ...OUTCOME_FILTER_OPTIONS.map((option) => ({
-    label: option.label,
-    filter: { kind: "outcome" as const, outcome: option.value },
-  })),
-];
-
-const NO_EXCEPTIONS_COPY = "No exceptions to review.";
-
-type DecisionResponse = {
-  scan_id: string;
-  action: string;
-  decision: "approved" | "no_action" | null;
-  decided_by: string | null;
-  decided_at: string | null;
-};
-
-type InventoryAuditItem = {
-  action: string;
-  details: Record<string, unknown>;
-  actor_name: string | null;
-  created_at: string;
-};
-
 type InventoryAuditListResponse = {
-  items: InventoryAuditItem[];
+  items: {
+    action: string;
+    details: Record<string, unknown>;
+    actor_name: string | null;
+    created_at: string;
+  }[];
 };
-
-function auditDetailReference(
-  details: Record<string, unknown>,
-): string | null {
-  const reference = details.reference;
-  if (typeof reference === "string" && reference.trim() !== "") {
-    return reference;
-  }
-  return null;
-}
-
-function scanFiltersEqual(a: ScanListFilter, b: ScanListFilter): boolean {
-  if (a.kind !== b.kind) {
-    return false;
-  }
-  if (a.kind === "outcome" && b.kind === "outcome") {
-    return a.outcome === b.outcome;
-  }
-  return true;
-}
 
 type ScanRecordResponse = {
   scan: InventoryScan;
@@ -169,19 +103,6 @@ function outcomeBadgeClass(outcome: InventoryScanOutcome): string {
     return "text-foreground";
   }
   return "bg-maroon-50 text-maroon-700";
-}
-
-function sessionStatusLabel(status: InventorySessionStatus): string {
-  if (status === "draft") {
-    return "Draft";
-  }
-  if (status === "in_progress") {
-    return "In progress";
-  }
-  if (status === "in_review") {
-    return "In review";
-  }
-  return "Cancelled";
 }
 
 function buildScansPath(
@@ -316,23 +237,6 @@ function ScanResultCard({
       ) : null}
       <p className="font-mono text-sm text-foreground">{scan.barcode}</p>
     </div>
-  );
-}
-
-function ScanRow({ scan }: { scan: InventoryScan }) {
-  return (
-    <tr className="border-b border-border">
-      <td className="px-3 py-3 font-mono text-sm text-foreground">
-        {scan.barcode}
-      </td>
-      <td className="px-3 py-3 text-sm text-foreground">{scan.outcome_label}</td>
-      <td className="hidden px-3 py-3 text-sm text-foreground md:table-cell">
-        {scan.title ?? NO_TITLE}
-      </td>
-      <td className="hidden px-3 py-3 text-sm text-muted-foreground lg:table-cell">
-        {scan.scanned_at}
-      </td>
-    </tr>
   );
 }
 
@@ -865,152 +769,134 @@ export function SessionView({ sessionId }: SessionViewProps) {
               />
             ) : null}
 
-            {session.status === "draft" && session.expected_count === 0 ? (
-              <p className="text-sm text-muted-foreground">{ZERO_COUNT_COPY}</p>
-            ) : null}
+            <div className="grid min-w-0 gap-4 lg:grid-cols-3">
+              <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
+                {session.status === "in_progress" ? (
+                  <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                    <h2 className="font-display text-lg font-bold text-foreground">
+                      Scan barcodes
+                    </h2>
+                    <div className="mt-4 flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
+                      <form
+                        className="flex min-w-0 flex-col gap-3"
+                        onSubmit={(event: FormEvent) => event.preventDefault()}
+                      >
+                        <Input
+                          ref={barcodeInputRef}
+                          value={barcodeDraft}
+                          onChange={(event) => {
+                            setBarcodeDraft(event.target.value);
+                            if (barcodeError) {
+                              setBarcodeError(null);
+                            }
+                          }}
+                          onKeyDown={onBarcodeKeyDown}
+                          inputMode={inputMode}
+                          autoComplete="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
+                          aria-label="Barcode"
+                          className="min-h-11 font-mono text-base"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          {SCANNER_HINT}
+                        </p>
+                        {barcodeError ? (
+                          <p className="text-sm text-destructive">
+                            {barcodeError}
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-11"
+                            onClick={onTypeBarcode}
+                          >
+                            Type barcode
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="min-h-11"
+                            onClick={toggleSound}
+                          >
+                            {soundOn ? "Sound on" : "Sound off"}
+                          </Button>
+                        </div>
+                      </form>
 
-            {session.status === "in_progress" ? (
-              <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
-                <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-background px-4 py-3 sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
-                  <form
-                    className="flex min-w-0 flex-col gap-3"
-                    onSubmit={(event: FormEvent) => event.preventDefault()}
-                  >
-                    <Input
-                      ref={barcodeInputRef}
-                      value={barcodeDraft}
-                      onChange={(event) => {
-                        setBarcodeDraft(event.target.value);
-                        if (barcodeError) {
-                          setBarcodeError(null);
-                        }
-                      }}
-                      onKeyDown={onBarcodeKeyDown}
-                      inputMode={inputMode}
-                      autoComplete="off"
-                      autoCapitalize="off"
-                      spellCheck={false}
-                      aria-label="Barcode"
-                      className="min-h-11 font-mono text-base"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {SCANNER_HINT}
-                    </p>
-                    {barcodeError ? (
-                      <p className="text-sm text-destructive">{barcodeError}</p>
-                    ) : null}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-11"
-                        onClick={onTypeBarcode}
-                      >
-                        Type barcode
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-11"
-                        onClick={toggleSound}
-                      >
-                        {soundOn ? "Sound on" : "Sound off"}
-                      </Button>
+                      <div className="min-w-0 flex flex-col gap-3">
+                        {pendingCount > 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            {WAITING_COPY}{" "}
+                            <span className="font-medium text-foreground">
+                              {pendingCount}
+                            </span>
+                          </p>
+                        ) : null}
+                        {latestFinished?.kind === "failure" ? (
+                          <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
+                            <p className="font-mono text-sm text-foreground">
+                              {latestFinished.barcode}
+                            </p>
+                            <p className="text-sm text-foreground">
+                              {SCAN_FAILURE_COPY}
+                            </p>
+                            <Button
+                              type="button"
+                              className="min-h-11 self-start"
+                              onClick={() => {
+                                void onRetry(
+                                  latestFinished.clientScanId,
+                                  latestFinished.barcode,
+                                );
+                              }}
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        ) : latestFinished?.kind === "scan" ? (
+                          <ScanResultCard scan={latestFinished.scan} />
+                        ) : null}
+                      </div>
                     </div>
-                  </form>
-                </div>
-
-                <div className="min-w-0 flex flex-col gap-3">
-                  {pendingCount > 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      {WAITING_COPY}{" "}
-                      <span className="font-medium text-foreground">
-                        {pendingCount}
-                      </span>
-                    </p>
-                  ) : null}
-                  {latestFinished?.kind === "failure" ? (
-                    <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
-                      <p className="font-mono text-sm text-foreground">
-                        {latestFinished.barcode}
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {SCAN_FAILURE_COPY}
-                      </p>
-                      <Button
-                        type="button"
-                        className="min-h-11 self-start"
-                        onClick={() => {
-                          void onRetry(
-                            latestFinished.clientScanId,
-                            latestFinished.barcode,
-                          );
-                        }}
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  ) : latestFinished?.kind === "scan" ? (
-                    <ScanResultCard scan={latestFinished.scan} />
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            {session.status === "in_progress" ||
-            session.status === "in_review" ||
-            session.status === "cancelled" ? (
-              <div className="flex min-w-0 flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] lg:items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
-                <ScansPanel
-                  scansQuery={scansQuery}
-                  scanSearchDraft={scanSearchDraft}
-                  onScanSearchChange={setScanSearchDraft}
-                  scanFilter={scanFilter}
-                  onScanFilterChange={setScanFilter}
-                  scanPage={scanPage}
-                  onScanPageChange={setScanPage}
-                />
-                <WorkstationSidebar
-                  className="hidden min-w-0 lg:flex"
+                  </section>
+                ) : null}
+                {session.status === "draft" && session.expected_count === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {ZERO_COUNT_COPY}
+                  </p>
+                ) : null}
+                {session.status === "in_progress" ||
+                session.status === "in_review" ||
+                session.status === "cancelled" ? (
+                  <ScansPanel
+                    scansQuery={scansQuery}
+                    scanSearchDraft={scanSearchDraft}
+                    onScanSearchChange={setScanSearchDraft}
+                    scanFilter={scanFilter}
+                    onScanFilterChange={setScanFilter}
+                    scanPage={scanPage}
+                    onScanPageChange={setScanPage}
+                  />
+                ) : null}
+                <ExceptionReviewPanel
                   sessionId={sessionId}
-                  sidebarScansQuery={sidebarScansQuery}
-                  sidebarAuditQuery={sidebarAuditQuery}
-                  sidebarSessionsQuery={sidebarSessionsQuery}
+                  status={session.status}
+                  exceptionsQuery={exceptionsQuery}
+                  reviewPage={reviewPage}
+                  onReviewPageChange={setReviewPage}
                 />
               </div>
-            ) : null}
-
-            {session.status === "draft" ||
-            session.status === "in_progress" ||
-            session.status === "in_review" ||
-            session.status === "cancelled" ? (
-              <ExceptionReviewPanel
-                sessionId={sessionId}
-                status={session.status}
-                exceptionsQuery={exceptionsQuery}
-                reviewPage={reviewPage}
-                onReviewPageChange={setReviewPage}
-              />
-            ) : null}
-
-            {session.status === "draft" ||
-            session.status === "in_progress" ||
-            session.status === "in_review" ||
-            session.status === "cancelled" ? (
-              <WorkstationSidebar
-                className={
-                  session.status === "in_progress" ||
-                  session.status === "in_review" ||
-                  session.status === "cancelled"
-                    ? "min-w-0 lg:hidden"
-                    : "min-w-0"
-                }
+              <SessionSidebar
+                className="min-w-0"
                 sessionId={sessionId}
                 sidebarScansQuery={sidebarScansQuery}
                 sidebarAuditQuery={sidebarAuditQuery}
                 sidebarSessionsQuery={sidebarSessionsQuery}
               />
-            ) : null}
+            </div>
           </>
         ) : null}
       </div>
@@ -1048,568 +934,5 @@ export function SessionView({ sessionId }: SessionViewProps) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-function ScansPanel({
-  scansQuery,
-  scanSearchDraft,
-  onScanSearchChange,
-  scanFilter,
-  onScanFilterChange,
-  scanPage,
-  onScanPageChange,
-}: {
-  scansQuery: {
-    data: InventoryScanListResponse | undefined;
-    isPending: boolean;
-    isPlaceholderData: boolean;
-    isError: boolean;
-    error: Error | null;
-    refetch: () => Promise<unknown>;
-  };
-  scanSearchDraft: string;
-  onScanSearchChange: (value: string) => void;
-  scanFilter: ScanListFilter;
-  onScanFilterChange: (filter: ScanListFilter) => void;
-  scanPage: number;
-  onScanPageChange: (page: number) => void;
-}) {
-  const items = scansQuery.data?.items ?? [];
-  const pending =
-    scansQuery.isPending || scansQuery.isPlaceholderData;
-  const page = scansQuery.data?.page ?? scanPage;
-  const total = scansQuery.data?.total ?? null;
-  const hasNext = scansQuery.data?.has_next ?? false;
-
-  return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="min-w-0 rounded-lg border border-border bg-card p-4">
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="relative min-w-0">
-            <HugeiconsIcon
-              icon={SearchIcon}
-              strokeWidth={2}
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground opacity-50 select-none"
-            />
-            <Input
-              value={scanSearchDraft}
-              onChange={(event) => onScanSearchChange(event.target.value)}
-              placeholder="Barcode"
-              className="min-h-11 h-11 pl-9 text-sm"
-            />
-          </div>
-          <div className="flex min-w-0 flex-wrap gap-2">
-            {SCAN_FILTER_CHIPS.map((chip) => {
-              const active = scanFiltersEqual(scanFilter, chip.filter);
-              return (
-                <Button
-                  key={chip.label}
-                  type="button"
-                  variant={active ? "default" : "outline"}
-                  className="min-h-11 shrink-0 text-sm"
-                  onClick={() => {
-                    onScanFilterChange(chip.filter);
-                  }}
-                >
-                  {chip.label}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {scansQuery.isError ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
-          <p className="text-sm text-foreground">
-            {scansQuery.error instanceof Error
-              ? scansQuery.error.message
-              : "Scans could not be loaded."}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 self-start"
-            onClick={() => {
-              void scansQuery.refetch();
-            }}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[480px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th className="px-3 py-2 font-semibold">Barcode</th>
-                <th className="px-3 py-2 font-semibold">Outcome</th>
-                <th className="hidden px-3 py-2 font-semibold md:table-cell">
-                  Title
-                </th>
-                <th className="hidden px-3 py-2 font-semibold lg:table-cell">
-                  Scanned
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {pending ? (
-                <tr>
-                  <td className="px-3 py-6" colSpan={4}>
-                    <Skeleton className="h-10 w-full" />
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-3 py-8 text-center text-sm text-muted-foreground"
-                    colSpan={4}
-                  >
-                    No scans yet.
-                  </td>
-                </tr>
-              ) : (
-                items.map((scan) => <ScanRow key={scan.id} scan={scan} />)
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {!scansQuery.isError ? (
-        <CatalogPagination
-          page={page}
-          total={total}
-          perPage={20}
-          hasNext={hasNext}
-          onPage={onScanPageChange}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function reviewDecisionStatusLine(
-  review: InventoryScan["decision"],
-): string | null {
-  if (!review || review.decision === null) {
-    return null;
-  }
-  const word = review.decision === "approved" ? "Approve" : "No action";
-  if (review.decided_by && review.decided_by.trim() !== "") {
-    return `${word} · ${review.decided_by}`;
-  }
-  return word;
-}
-
-function ExceptionReviewRow({
-  sessionId,
-  scan,
-  controlsEnabled,
-}: {
-  sessionId: string;
-  scan: InventoryScan;
-  controlsEnabled: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const pairs = actionsFor(scan.outcome);
-  const [selectedAction, setSelectedAction] = useState(
-    () => scan.decision?.action ?? "",
-  );
-  const [rowError, setRowError] = useState<string | null>(null);
-  const [rowPending, setRowPending] = useState(false);
-
-  useEffect(() => {
-    setSelectedAction(scan.decision?.action ?? "");
-  }, [scan.id, scan.decision?.action]);
-
-  const buttonsDisabled =
-    !controlsEnabled || !selectedAction || rowPending;
-  const decisionStatus = reviewDecisionStatusLine(scan.decision);
-
-  async function saveDecision(
-    action: string,
-    decision: "approved" | "no_action" | null,
-  ) {
-    setRowPending(true);
-    setRowError(null);
-    try {
-      const response = await fetchApi<DecisionResponse>(
-        `/inventory/sessions/${sessionId}/scans/${scan.id}/decision`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, decision }),
-        },
-      );
-      setSelectedAction(response.action);
-      queryClient.setQueriesData<InventoryScanListResponse>(
-        { queryKey: ["inventory", "session", sessionId, "exceptions"] },
-        (cached) => {
-          if (!cached) {
-            return cached;
-          }
-          return {
-            ...cached,
-            items: cached.items.map((row) =>
-              row.id === response.scan_id
-                ? {
-                    ...row,
-                    decision: {
-                      action: response.action,
-                      decision: response.decision,
-                      decided_by: response.decided_by,
-                      decided_at: response.decided_at,
-                    },
-                  }
-                : row,
-            ),
-          };
-        },
-      );
-      void queryClient.invalidateQueries({
-        queryKey: ["inventory", "session", sessionId, "audit"],
-      });
-    } catch (caught) {
-      const message =
-        caught instanceof ApiError
-          ? (caught.detail?.message ?? caught.message)
-          : caught instanceof Error
-            ? caught.message
-            : "Decision not saved.";
-      setRowError(message);
-    } finally {
-      setRowPending(false);
-    }
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
-      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-        <p className="font-mono text-sm text-foreground">{scan.barcode}</p>
-        <p
-          className={`inline-flex w-fit rounded-md px-2 py-0.5 text-xs font-medium ${outcomeBadgeClass(scan.outcome)}`}
-        >
-          {scan.outcome_label}
-        </p>
-      </div>
-      <p className="text-sm text-foreground">{scan.title ?? NO_TITLE}</p>
-      {scan.message ? (
-        <p className="text-sm text-muted-foreground">{scan.message}</p>
-      ) : null}
-      {decisionStatus ? (
-        <p className="text-sm text-foreground">{decisionStatus}</p>
-      ) : null}
-      {pairs ? (
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <Select
-            value={selectedAction}
-            disabled={!controlsEnabled || rowPending}
-            onValueChange={(value) => {
-              if (value == null || value === "") {
-                return;
-              }
-              setSelectedAction(value);
-              void saveDecision(value, null);
-            }}
-          >
-            <SelectTrigger className="min-h-11 w-full min-w-0 text-sm sm:min-w-64 sm:flex-1">
-              <SelectValue placeholder="Choose an action" />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              {pairs.map((sentence) => (
-                <SelectItem key={sentence} value={sentence}>
-                  {sentence}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              className="min-h-11"
-              disabled={buttonsDisabled}
-              onClick={() => {
-                void saveDecision(selectedAction, "approved");
-              }}
-            >
-              Approve
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11"
-              disabled={buttonsDisabled}
-              onClick={() => {
-                void saveDecision(selectedAction, "no_action");
-              }}
-            >
-              No action
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {rowError ? (
-        <p className="text-sm text-destructive">{rowError}</p>
-      ) : null}
-    </div>
-  );
-}
-
-type SidebarQueryState<T> = {
-  data: T | undefined;
-  isPending: boolean;
-  isError: boolean;
-  error: Error | null;
-  refetch: () => Promise<unknown>;
-};
-
-function WorkstationSidebar({
-  className,
-  sessionId,
-  sidebarScansQuery,
-  sidebarAuditQuery,
-  sidebarSessionsQuery,
-}: {
-  className?: string;
-  sessionId: string;
-  sidebarScansQuery: SidebarQueryState<InventoryScanListResponse>;
-  sidebarAuditQuery: SidebarQueryState<InventoryAuditListResponse>;
-  sidebarSessionsQuery: SidebarQueryState<InventorySessionListResponse>;
-}) {
-  const latestScans = sidebarScansQuery.data?.items ?? [];
-  const auditItems = sidebarAuditQuery.data?.items ?? [];
-  const otherSessions = (sidebarSessionsQuery.data?.items ?? [])
-    .filter((row) => row.id !== sessionId)
-    .slice(0, 5);
-
-  return (
-    <aside
-      className={`min-w-0 flex-col gap-4 ${className ?? ""}`}
-      aria-label="Session activity"
-    >
-      <SidebarGroup title="Latest scans">
-        {sidebarScansQuery.isError ? (
-          <SidebarError
-            message="Latest scans could not be loaded."
-            onRetry={() => {
-              void sidebarScansQuery.refetch();
-            }}
-          />
-        ) : sidebarScansQuery.isPending ? (
-          <Skeleton className="h-24 w-full rounded-lg" />
-        ) : latestScans.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No scans yet.</p>
-        ) : (
-          <ul className="flex min-w-0 flex-col gap-2">
-            {latestScans.map((scan) => (
-              <li
-                key={scan.id}
-                className="flex min-w-0 flex-col gap-0.5 border-b border-border pb-2 last:border-0 last:pb-0"
-              >
-                <span className="truncate font-mono text-sm text-foreground">
-                  {scan.barcode}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {scan.outcome_label}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SidebarGroup>
-
-      <SidebarGroup title="Audit">
-        {sidebarAuditQuery.isError ? (
-          <SidebarError
-            message="Audit could not be loaded."
-            onRetry={() => {
-              void sidebarAuditQuery.refetch();
-            }}
-          />
-        ) : sidebarAuditQuery.isPending ? (
-          <Skeleton className="h-24 w-full rounded-lg" />
-        ) : auditItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No audit entries yet.</p>
-        ) : (
-          <ul className="flex min-w-0 flex-col gap-3">
-            {auditItems.map((entry, index) => {
-              const reference = auditDetailReference(entry.details);
-              return (
-                <li
-                  key={`${entry.action}-${entry.created_at}-${index}`}
-                  className="flex min-w-0 flex-col gap-0.5 border-b border-border pb-2 last:border-0 last:pb-0"
-                >
-                  <span className="break-words text-sm text-foreground">
-                    {entry.action}
-                  </span>
-                  {reference ? (
-                    <span className="text-xs text-muted-foreground">
-                      {reference}
-                    </span>
-                  ) : null}
-                  <span className="text-xs text-muted-foreground">
-                    {entry.actor_name ?? "Unknown"}
-                    <span aria-hidden="true"> · </span>
-                    {entry.created_at}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </SidebarGroup>
-
-      <SidebarGroup title="Other sessions">
-        {sidebarSessionsQuery.isError ? (
-          <SidebarError
-            message="Other sessions could not be loaded."
-            onRetry={() => {
-              void sidebarSessionsQuery.refetch();
-            }}
-          />
-        ) : sidebarSessionsQuery.isPending ? (
-          <Skeleton className="h-20 w-full rounded-lg" />
-        ) : otherSessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No other sessions.</p>
-        ) : (
-          <ul className="flex min-w-0 flex-col gap-2">
-            {otherSessions.map((other) => (
-              <li key={other.id} className="min-w-0">
-                <Link
-                  href={`/inventory/${other.id}`}
-                  className="flex min-w-0 flex-col gap-0.5 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted/40"
-                >
-                  <span className="truncate font-medium text-foreground">
-                    {other.reference}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {sessionStatusLabel(other.status)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SidebarGroup>
-    </aside>
-  );
-}
-
-function SidebarGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="min-w-0 rounded-lg border border-border bg-card px-3 py-3 sm:px-4">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-function SidebarError({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-sm text-foreground">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        className="min-h-11 self-start"
-        onClick={onRetry}
-      >
-        Try again
-      </Button>
-    </div>
-  );
-}
-
-function ExceptionReviewPanel({
-  sessionId,
-  status,
-  exceptionsQuery,
-  reviewPage,
-  onReviewPageChange,
-}: {
-  sessionId: string;
-  status: InventorySessionStatus;
-  exceptionsQuery: {
-    data: InventoryScanListResponse | undefined;
-    isPending: boolean;
-    isPlaceholderData: boolean;
-    isError: boolean;
-    error: Error | null;
-    refetch: () => Promise<unknown>;
-  };
-  reviewPage: number;
-  onReviewPageChange: (page: number) => void;
-}) {
-  const items = exceptionsQuery.data?.items ?? [];
-  const pending =
-    exceptionsQuery.isPending || exceptionsQuery.isPlaceholderData;
-  const page = exceptionsQuery.data?.page ?? reviewPage;
-  const total = exceptionsQuery.data?.total ?? null;
-  const hasNext = exceptionsQuery.data?.has_next ?? false;
-  const controlsEnabled = status === "in_review";
-
-  return (
-    <div className="flex min-w-0 flex-col gap-4">
-      {exceptionsQuery.isError ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-4">
-          <p className="text-sm text-foreground">
-            {exceptionsQuery.error instanceof Error
-              ? exceptionsQuery.error.message
-              : "Exceptions could not be loaded."}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 self-start"
-            onClick={() => {
-              void exceptionsQuery.refetch();
-            }}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : pending ? (
-        <Skeleton className="h-24 w-full rounded-lg" />
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{NO_EXCEPTIONS_COPY}</p>
-      ) : (
-        <div className="flex min-w-0 flex-col gap-3">
-          {items.map((scan) => (
-            <ExceptionReviewRow
-              key={scan.id}
-              sessionId={sessionId}
-              scan={scan}
-              controlsEnabled={controlsEnabled}
-            />
-          ))}
-        </div>
-      )}
-
-      {!exceptionsQuery.isError && !pending && (total ?? 0) > 0 ? (
-        <CatalogPagination
-          page={page}
-          total={total}
-          perPage={20}
-          hasNext={hasNext}
-          onPage={onReviewPageChange}
-        />
-      ) : null}
-    </div>
   );
 }
