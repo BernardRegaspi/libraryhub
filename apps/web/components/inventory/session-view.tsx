@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
+import { InventoryKpis } from "@/components/inventory/inventory-kpis";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchApi, getApiBaseUrl } from "@/lib/api";
 import { actionsFor } from "@/lib/inventory/actions";
@@ -404,40 +405,6 @@ function SessionProgress({
           style={{ width: `${widthPercent}%` }}
         />
       </div>
-    </div>
-  );
-}
-
-function CountCardsGrid({
-  session,
-  counters,
-}: {
-  session: InventorySession;
-  counters: InventorySessionCounters;
-}) {
-  const cards = [
-    { label: "Expected", value: session.expected_count },
-    { label: "Verified", value: counters.verified },
-    { label: "Not found", value: counters.not_found },
-    { label: "Misplaced", value: counters.misplaced },
-    { label: "Unexpected", value: counters.unexpected },
-    { label: "Damaged", value: counters.damaged },
-    { label: "Withdrawn", value: counters.withdrawn },
-  ];
-
-  return (
-    <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="min-w-0 rounded-lg border border-border bg-card px-3 py-3 sm:px-4"
-        >
-          <p className="text-xs text-muted-foreground">{card.label}</p>
-          <p className="font-display text-2xl font-semibold tabular-nums text-foreground sm:text-3xl">
-            {card.value}
-          </p>
-        </div>
-      ))}
     </div>
   );
 }
@@ -1006,7 +973,10 @@ export function SessionView({ sessionId }: SessionViewProps) {
               expectedCount={session.expected_count}
             />
             {displayCounters ? (
-              <CountCardsGrid session={session} counters={displayCounters} />
+              <InventoryKpis
+                counters={displayCounters}
+                expectedCount={session.expected_count}
+              />
             ) : null}
 
             {session.status === "draft" ? (
