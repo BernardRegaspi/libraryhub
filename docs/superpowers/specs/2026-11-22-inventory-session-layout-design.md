@@ -1,7 +1,7 @@
 # Inventory session layout
 
 Date: 2026-11-22
-Status: pending review
+Status: approved
 
 ## Purpose
 
