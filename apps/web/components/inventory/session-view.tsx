@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { CatalogPagination } from "@/components/catalog/catalog-pagination";
 import { InventoryKpis } from "@/components/inventory/inventory-kpis";
+import { SessionCard } from "@/components/inventory/session-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchApi, getApiBaseUrl } from "@/lib/api";
 import { actionsFor } from "@/lib/inventory/actions";
@@ -183,21 +184,6 @@ function sessionStatusLabel(status: InventorySessionStatus): string {
   return "Cancelled";
 }
 
-function stepperCurrentIndex(status: InventorySessionStatus): number | null {
-  if (status === "draft") {
-    return 0;
-  }
-  if (status === "in_progress") {
-    return 1;
-  }
-  if (status === "in_review") {
-    return 2;
-  }
-  return null;
-}
-
-const STEPPER_LABELS = ["Plan", "Scan", "Review"] as const;
-
 function buildScansPath(
   sessionId: string,
   q: string,
@@ -299,114 +285,6 @@ function playTone(audioContextRef: React.RefObject<AudioContext | null>, hz: num
   gain.connect(ctx.destination);
   oscillator.start();
   oscillator.stop(ctx.currentTime + 0.12);
-}
-
-function WorkstationHeader({ session }: { session: InventorySession }) {
-  return (
-    <header className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {session.reference}
-            <span className="text-muted-foreground"> · </span>
-            {session.name}
-          </h1>
-        </div>
-        <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground">
-          {sessionStatusLabel(session.status)}
-        </span>
-      </div>
-      <dl className="grid gap-2 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-muted-foreground">Library</dt>
-          <dd className="text-foreground">
-            {session.home_library_name ?? session.home_library_id}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Location</dt>
-          <dd className="text-foreground">
-            {session.location ?? "Whole library"}
-          </dd>
-        </div>
-      </dl>
-    </header>
-  );
-}
-
-function InventoryStepper({
-  status,
-  exportPending,
-  onExport,
-}: {
-  status: InventorySessionStatus;
-  exportPending: boolean;
-  onExport: () => void;
-}) {
-  const currentIndex = stepperCurrentIndex(status);
-  const exportEnabled = status === "in_review" || status === "cancelled";
-
-  return (
-    <ol className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
-      {STEPPER_LABELS.map((label, index) => {
-        const isCurrent = currentIndex === index;
-        return (
-          <li
-            key={label}
-            className={`min-w-0 text-sm ${isCurrent ? "font-semibold text-maroon-700" : "text-muted-foreground"}`}
-          >
-            <span className="tabular-nums">{index + 1}.</span> {label}
-          </li>
-        );
-      })}
-      <li className="min-w-0 md:col-span-1">
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11 w-full min-w-0 text-sm"
-          disabled={!exportEnabled || exportPending}
-          onClick={() => {
-            onExport();
-          }}
-        >
-          Export exceptions
-        </Button>
-      </li>
-    </ol>
-  );
-}
-
-function SessionProgress({
-  seen,
-  expectedCount,
-}: {
-  seen: number;
-  expectedCount: number;
-}) {
-  const widthPercent =
-    expectedCount === 0
-      ? 0
-      : Math.min(100, (seen / expectedCount) * 100);
-
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-sm text-foreground">
-        {seen} of {expectedCount} expected items seen
-      </p>
-      <div
-        className="h-2 w-full min-w-0 overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-valuenow={seen}
-        aria-valuemin={0}
-        aria-valuemax={expectedCount}
-      >
-        <div
-          className="h-full rounded-full bg-maroon-700 transition-[width]"
-          style={{ width: `${widthPercent}%` }}
-        />
-      </div>
-    </div>
-  );
 }
 
 function ScanResultCard({
@@ -918,7 +796,6 @@ export function SessionView({ sessionId }: SessionViewProps) {
   }, [refocusBarcode, session?.status]);
 
   const displayCounters = counters ?? session?.counters;
-  const progressSeen = displayCounters?.seen ?? session?.counters.seen ?? 0;
 
   return (
     <>
@@ -957,20 +834,29 @@ export function SessionView({ sessionId }: SessionViewProps) {
           </div>
         ) : session ? (
           <>
-            <WorkstationHeader session={session} />
-            <InventoryStepper
-              status={session.status}
+            <SessionCard
+              session={
+                displayCounters
+                  ? { ...session, counters: displayCounters }
+                  : session
+              }
+              actionPending={actionPending}
+              actionError={actionError}
               exportPending={exportPending}
+              exportError={exportError}
+              onStart={() => {
+                void onStartScanning();
+              }}
+              onFinish={() => {
+                void onFinishScanning();
+              }}
+              onResume={() => {
+                void onBackToScanning();
+              }}
+              onCancel={() => setCancelOpen(true)}
               onExport={() => {
                 void onExportExceptions();
               }}
-            />
-            {exportError ? (
-              <p className="text-sm text-destructive">{exportError}</p>
-            ) : null}
-            <SessionProgress
-              seen={progressSeen}
-              expectedCount={session.expected_count}
             />
             {displayCounters ? (
               <InventoryKpis
@@ -979,100 +865,8 @@ export function SessionView({ sessionId }: SessionViewProps) {
               />
             ) : null}
 
-            {session.status === "draft" ? (
-              <>
-                {actionError ? (
-                  <p className="text-sm text-destructive">{actionError}</p>
-                ) : null}
-                {session.expected_count === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {ZERO_COUNT_COPY}
-                  </p>
-                ) : null}
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    type="button"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => {
-                      void onStartScanning();
-                    }}
-                  >
-                    Start scanning
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => setCancelOpen(true)}
-                  >
-                    Cancel session
-                  </Button>
-                </div>
-              </>
-            ) : null}
-
-            {session.status === "in_progress" ? (
-              <>
-                {actionError ? (
-                  <p className="text-sm text-destructive">{actionError}</p>
-                ) : null}
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    type="button"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => {
-                      void onFinishScanning();
-                    }}
-                  >
-                    Finish scanning
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => setCancelOpen(true)}
-                  >
-                    Cancel session
-                  </Button>
-                </div>
-              </>
-            ) : null}
-
-            {session.status === "in_review" ? (
-              <>
-                {actionError ? (
-                  <p className="text-sm text-destructive">{actionError}</p>
-                ) : null}
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    type="button"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => {
-                      void onBackToScanning();
-                    }}
-                  >
-                    Back to scanning
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    disabled={actionPending}
-                    onClick={() => setCancelOpen(true)}
-                  >
-                    Cancel session
-                  </Button>
-                </div>
-              </>
-            ) : null}
-
-            {session.status === "cancelled" ? (
-              <p className="text-sm font-medium text-foreground">Cancelled</p>
+            {session.status === "draft" && session.expected_count === 0 ? (
+              <p className="text-sm text-muted-foreground">{ZERO_COUNT_COPY}</p>
             ) : null}
 
             {session.status === "in_progress" ? (
