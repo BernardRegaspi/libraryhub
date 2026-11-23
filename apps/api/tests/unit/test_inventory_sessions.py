@@ -97,6 +97,26 @@ def _session_count(db) -> int:
     return db.scalar(select(func.count()).select_from(InventorySession)) or 0
 
 
+def test_create_missing_department_raises_not_found(db, staff_user):
+    missing_id = uuid.uuid4()
+    with pytest.raises(InventoryError) as exc_info:
+        create_session(
+            db,
+            user_id=staff_user.id,
+            department_id=missing_id,
+            name="Fall count",
+            description=None,
+            start_on=date(2026, 11, 1),
+            target_on=None,
+            locations=[],
+            item_type_id=None,
+            operator_ids=[],
+        )
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "not_found"
+    assert _session_count(db) == 0
+
+
 def test_create_branch_unmapped_raises_and_inserts_no_session(
     db,
     staff_user,
@@ -169,6 +189,42 @@ def test_start_without_item_list_raises_and_stays_draft(
     fresh = db.get(InventorySession, session.id)
     assert fresh is not None
     assert fresh.status == "draft"
+
+
+@pytest.mark.parametrize(
+    "pages",
+    [
+        [],
+        [_item(item_id=2, barcode="OUT-1", checked_out_date="2026-11-01")],
+    ],
+)
+def test_start_empty_kept_set_still_in_progress(db, staff_user, mapped_department, pages):
+    session = create_session(
+        db,
+        user_id=staff_user.id,
+        department_id=mapped_department.id,
+        name="Empty scope",
+        description=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        locations=[],
+        item_type_id=None,
+        operator_ids=[],
+    )
+    db.commit()
+    client = FakeKohaClient([pages])
+    caps = InventoryCapabilities(
+        item_list=ItemListCapability("GET", "/items", "home_library_id"),
+    )
+    started = start_session(db, client, caps, session.id)
+    assert started.status == "in_progress"
+    assert started.expected_count == 0
+    count = db.scalar(
+        select(func.count()).select_from(InventoryExpectedItem).where(
+            InventoryExpectedItem.session_id == session.id,
+        ),
+    )
+    assert count == 0
 
 
 def test_start_keeps_on_shelf_item_and_audits(db, staff_user, mapped_department):

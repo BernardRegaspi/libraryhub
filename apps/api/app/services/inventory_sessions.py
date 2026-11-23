@@ -22,6 +22,7 @@ from app.models.inventory import (
 )
 from app.services.inventory_audit import write_inventory_audit
 from app.services.inventory_errors import (
+    InventoryError,
     ambiguous_barcode,
     branch_unmapped,
     invalid_state,
@@ -50,7 +51,7 @@ def create_session(
 ) -> InventorySession:
     department = db.get(LibraryDepartment, department_id)
     if department is None:
-        raise branch_unmapped()
+        raise InventoryError(404, "not_found", "That department was not found.")
     branch = (department.koha_branchcode or "").strip()
     if not branch:
         raise branch_unmapped()
