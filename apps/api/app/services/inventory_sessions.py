@@ -321,6 +321,45 @@ def list_sessions(
     }
 
 
+def list_session_items(
+    db: Session,
+    session: InventorySession,
+    *,
+    condition: str,
+    q: str,
+    location: str,
+    page: int,
+    per_page: int,
+    sort: str,
+    direction: str,
+    include_barcode: bool,
+) -> dict[str, Any]:
+    from app.services.inventory_exports import export_rows
+
+    rows = export_rows(
+        db,
+        session_id=session.id,
+        kind="filter",
+        item_query={
+            "condition": condition,
+            "q": q,
+            "location": location,
+            "sort": sort,
+            "direction": direction,
+        },
+        include_barcode=include_barcode,
+    )
+    total = len(rows)
+    offset = (page - 1) * per_page
+    page_rows = rows[offset : offset + per_page]
+    return {
+        "items": page_rows,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
 def session_summary(db: Session, session_id: uuid.UUID) -> dict[str, Any]:
     expected_items = db.scalars(
         select(InventoryExpectedItem).where(InventoryExpectedItem.session_id == session_id),

@@ -1,0 +1,346 @@
+from __future__ import annotations
+
+import uuid
+from datetime import date
+
+import httpx
+import pytest
+from sqlalchemy import func, select
+
+from app.integrations.koha.client import KohaClient
+from app.models.identity import LibraryDepartment, Permission, Role, RolePermission
+from app.models.inventory import InventoryAdjustment, InventoryScan, InventorySession
+from app.services.inventory_adjustments import draft_adjustment
+from app.services.inventory_sessions import create_session
+from tests.api.test_auth import add_user, csrf_headers
+
+try:
+    from tests.api.test_auth import PASSWORD
+except ImportError:
+    PASSWORD = "local-secret"
+
+
+def _login(client, username: str) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": PASSWORD},
+    )
+    assert response.status_code == 200
+
+
+def _patch_koha(monkeypatch: pytest.MonkeyPatch, handler) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.inventory.KohaClient",
+        lambda settings: KohaClient(settings, transport=httpx.MockTransport(handler)),
+    )
+
+
+def _handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path.endswith("/oauth/token"):
+        return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+    return httpx.Response(404)
+
+
+def test_capabilities_require_session(auth_client):
+    response = auth_client.get("/api/v1/inventory/capabilities")
+    assert response.status_code == 401
+
+
+def test_post_sessions_requires_manage(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="inv-view-only",
+        email="inv-view-only@usant.edu.ph",
+        display_name="Inv View",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    role = db.query(Role).filter_by(name="Librarian").one()
+    perm = db.query(Permission).filter_by(code="inventory.manage").one()
+    link = (
+        db.query(RolePermission)
+        .filter_by(role_id=role.id, permission_id=perm.id)
+        .one()
+    )
+    db.delete(link)
+    db.flush()
+
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-view-only")
+    response = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={
+            "name": "Fall count",
+            "description": None,
+            "start_on": "2026-11-01",
+            "target_on": None,
+            "locations": [],
+            "item_type_id": None,
+            "operator_ids": [],
+        },
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "permission_denied"
+
+
+def test_post_sessions_requires_active_department(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="inv-super",
+        email="inv-super@usant.edu.ph",
+        display_name="Inv Super",
+        password=PASSWORD,
+        role_name="Super Administrator",
+        department_code=None,
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-super")
+    response = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={
+            "name": "Fall count",
+            "description": None,
+            "start_on": "2026-11-01",
+            "target_on": None,
+            "locations": [],
+            "item_type_id": None,
+            "operator_ids": [],
+        },
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "department_required"
+
+
+def test_post_sessions_branch_unmapped(auth_client, db, monkeypatch):
+    dept = LibraryDepartment(
+        code=f"UNM-{uuid.uuid4().hex[:6]}",
+        name="Unmapped",
+        koha_branchcode=None,
+    )
+    db.add(dept)
+    db.flush()
+    add_user(
+        db,
+        username="inv-unmapped",
+        email="inv-unmapped@usant.edu.ph",
+        display_name="Inv Unmapped",
+        password=PASSWORD,
+        role_name="Super Administrator",
+        department_code=None,
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-unmapped")
+    switch = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(dept.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert switch.status_code == 200
+    response = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={
+            "name": "Fall count",
+            "description": None,
+            "start_on": "2026-11-01",
+            "target_on": None,
+            "locations": [],
+            "item_type_id": None,
+            "operator_ids": [],
+        },
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "branch_unmapped"
+
+
+def test_start_without_item_list_is_unsupported(auth_client, db, monkeypatch):
+    user = add_user(
+        db,
+        username="inv-start",
+        email="inv-start@usant.edu.ph",
+        display_name="Inv Start",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    department.koha_branchcode = "COLLEGE"
+    db.flush()
+    session = create_session(
+        db,
+        user_id=user.id,
+        department_id=department.id,
+        name="Draft session",
+        description=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        locations=[],
+        item_type_id=None,
+        operator_ids=[],
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-start")
+    response = auth_client.post(
+        f"/api/v1/inventory/sessions/{session.id}/start",
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 501
+    assert response.json()["detail"]["code"] == "inventory_unsupported"
+    assert response.json()["detail"]["message"] == "This Koha operation is not available."
+
+
+def test_scan_control_character_invalid_and_no_row(auth_client, db, monkeypatch):
+    user = add_user(
+        db,
+        username="inv-scan",
+        email="inv-scan@usant.edu.ph",
+        display_name="Inv Scan",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    session_row = InventorySession(
+        department_id=department.id,
+        name="Scan session",
+        description=None,
+        status="in_progress",
+        home_library_id="COLLEGE",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        created_by=user.id,
+    )
+    db.add(session_row)
+    db.flush()
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-scan")
+    before = db.scalar(select(func.count()).select_from(InventoryScan)) or 0
+    response = auth_client.post(
+        f"/api/v1/inventory/sessions/{session_row.id}/scans",
+        json={"barcode": "A\u0001", "damaged": False},
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_scan"
+    after = db.scalar(select(func.count()).select_from(InventoryScan)) or 0
+    assert after == before
+
+
+def test_approve_by_drafter_is_not_approver(auth_client, db, monkeypatch):
+    from app.integrations.koha.inventory import InventoryCapabilities, ReadCapability
+
+    user = add_user(
+        db,
+        username="inv-drafter",
+        email="inv-drafter@usant.edu.ph",
+        display_name="Inv Drafter",
+        password=PASSWORD,
+        role_name="Department Head",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    session_row = InventorySession(
+        department_id=department.id,
+        name="Adj session",
+        description=None,
+        status="in_progress",
+        home_library_id="COLLEGE",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        created_by=user.id,
+    )
+    db.add(session_row)
+    db.flush()
+    caps = InventoryCapabilities(update_fields=("location",), item_update=ReadCapability("PUT", "/x"))
+    proposal = draft_adjustment(
+        db,
+        caps,
+        session_id=session_row.id,
+        user_id=user.id,
+        koha_item_id=9,
+        field="location",
+        to_value="STACK-B",
+        reason="Move item",
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-drafter")
+    response = auth_client.post(
+        f"/api/v1/inventory/adjustments/{proposal.id}/approve",
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "not_approver"
+    db.expire_all()
+    pending = db.get(InventoryAdjustment, proposal.id)
+    assert pending is not None
+    assert pending.status == "draft"
+
+
+def test_get_session_other_department_not_found(auth_client, db, monkeypatch):
+    user_a = add_user(
+        db,
+        username="inv-dept-a",
+        email="inv-dept-a@usant.edu.ph",
+        display_name="Inv A",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    dept_b = LibraryDepartment(
+        code=f"GRD-{uuid.uuid4().hex[:6]}",
+        name="Graduate",
+        koha_branchcode="GRAD",
+    )
+    db.add(dept_b)
+    db.flush()
+    session_row = InventorySession(
+        department_id=dept_b.id,
+        name="Other dept",
+        description=None,
+        status="draft",
+        home_library_id="GRAD",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        created_by=user_a.id,
+    )
+    db.add(session_row)
+    db.flush()
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-dept-a")
+    response = auth_client.get(f"/api/v1/inventory/sessions/{session_row.id}")
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "not_found"
+
+
+def test_write_without_csrf_rejected(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="inv-csrf",
+        email="inv-csrf@usant.edu.ph",
+        display_name="Inv CSRF",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-csrf")
+    response = auth_client.post(
+        "/api/v1/inventory/sessions",
+        json={
+            "name": "Fall count",
+            "description": None,
+            "start_on": "2026-11-01",
+            "target_on": None,
+            "locations": [],
+            "item_type_id": None,
+            "operator_ids": [],
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "csrf_failed"

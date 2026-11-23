@@ -95,3 +95,34 @@ def require_circulation_permission(
         return payload, session_row
 
     return _dependency
+
+
+_INVENTORY_PERMISSION_DENIED = HTTPException(
+    status_code=403,
+    detail={
+        "code": "permission_denied",
+        "message": "You do not have permission for this action.",
+    },
+)
+
+
+def require_inventory_permission(
+    code: str,
+) -> Callable[..., tuple[CurrentUserOut, UserSession]]:
+    def _dependency(
+        request: Request,
+        db: Annotated[Session, Depends(get_db_session)],
+    ) -> tuple[CurrentUserOut, UserSession]:
+        raw_token = request.cookies.get("libraryhub_session")
+        try:
+            payload, session_row = load_session(db, raw_token)
+        except AuthError as exc:
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail={"code": exc.code, "message": exc.message},
+            ) from exc
+        if code not in payload.permissions:
+            raise _INVENTORY_PERMISSION_DENIED
+        return payload, session_row
+
+    return _dependency

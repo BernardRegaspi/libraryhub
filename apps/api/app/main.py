@@ -9,6 +9,7 @@ from app.api.routes import (
     catalog_router,
     circulation_router,
     health_router,
+    inventory_router,
     patrons_router,
 )
 from app.core.config import get_settings
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog_router, prefix=settings.api_v1_prefix)
     app.include_router(patrons_router, prefix=settings.api_v1_prefix)
     app.include_router(circulation_router, prefix=settings.api_v1_prefix)
+    app.include_router(inventory_router, prefix=settings.api_v1_prefix)
     return app
 
 
