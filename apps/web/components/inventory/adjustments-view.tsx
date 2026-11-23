@@ -23,7 +23,7 @@ export function AdjustmentsView() {
 
   const canApprove = permissions.includes("inventory.adjustments.approve");
   const canSubmit = canApprove && capabilities?.item_update === true;
-  const updateBlocked = capabilities?.item_update === false;
+  const kohaItemListBlocked = capabilities?.item_list === false;
 
   const loadRows = useCallback(async () => {
     if (!sessionId) {
@@ -77,6 +77,7 @@ export function AdjustmentsView() {
 
   return (
     <div className="space-y-4">
+      {kohaItemListBlocked ? <KohaUnavailableBanner /> : null}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Koha item update</CardTitle>
