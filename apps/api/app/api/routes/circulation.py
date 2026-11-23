@@ -17,7 +17,7 @@ from app.integrations.koha.circulation import (
     get_circulation_capabilities,
 )
 from app.integrations.koha.client import KohaClient
-from app.integrations.koha.exceptions import KohaError, KohaNotFound, KohaTimeoutError
+from app.integrations.koha.exceptions import KohaError, KohaNotFound
 from app.models.identity import UserSession
 from app.schemas.auth import CurrentUserOut
 from app.services.auth import AuthError, assert_csrf, load_session
@@ -42,13 +42,6 @@ _CIRCULATION_UNAVAILABLE = HTTPException(
         "message": "Circulation is unavailable. Try again.",
     },
 )
-_CIRCULATION_TIMEOUT = HTTPException(
-    status_code=504,
-    detail={
-        "code": "circulation_timeout",
-        "message": "The outcome is unknown. Verify before trying again.",
-    },
-)
 
 _ACTION_PERMISSION = {
     "checkout": "circulation.checkout",
@@ -70,11 +63,12 @@ def _raise_circulation(exc: CirculationError) -> None:
     raise HTTPException(status_code=exc.status_code, detail=detail) from exc
 
 
-def _handle_koha(exc: KohaError) -> None:
-    if isinstance(exc, KohaTimeoutError):
-        raise _CIRCULATION_TIMEOUT from exc
-    if isinstance(exc, KohaNotFound):
-        raise _NOT_FOUND from exc
+def _handle_koha(exc: KohaError, *, not_found: str | None = None) -> None:
+    if isinstance(exc, KohaNotFound) and not_found is not None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": not_found},
+        ) from exc
     raise _CIRCULATION_UNAVAILABLE from exc
 
 
@@ -120,10 +114,13 @@ def _item_type_labels(client: KohaClient) -> dict[str, str]:
         return {}
 
 
-def _positive_id(value: int) -> int:
-    if value < 1:
-        raise _NOT_FOUND
-    return value
+def _positive_id(value: str, *, message: str) -> int:
+    if not value.isdigit():
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": message})
+    parsed = int(value)
+    if parsed < 1:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": message})
+    return parsed
 
 
 def _parse_uuid(value: object) -> uuid.UUID:
@@ -165,17 +162,19 @@ def patron_by_card_route(
         return patron_by_card(client, categories, libraries, cardnumber)
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc, not_found="That patron was not found.")
 
 
 @router.get("/patrons/{patron_id}")
 def patron_detail(
-    patron_id: int,
+    patron_id: str,
     user: Annotated[
         tuple[CurrentUserOut, UserSession],
         Depends(require_circulation_permission("circulation.view")),
     ],
 ) -> dict:
-    parsed_id = _positive_id(patron_id)
+    parsed_id = _positive_id(patron_id, message="That patron was not found.")
     client = _koha_client()
     categories = _patron_category_labels(client)
     libraries = _library_labels(client)
@@ -184,7 +183,7 @@ def patron_detail(
     except CirculationError as exc:
         _raise_circulation(exc)
     except KohaError as exc:
-        _handle_koha(exc)
+        _handle_koha(exc, not_found="That patron was not found.")
 
 
 @router.get("/items/by-barcode")
@@ -210,6 +209,8 @@ def item_by_barcode_route(
         )
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc, not_found="That item was not found.")
 
 
 @router.get("/loans")
@@ -243,17 +244,19 @@ def loans_list(
         )
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.get("/loans/{checkout_id}")
 def loan_detail(
-    checkout_id: int,
+    checkout_id: str,
     user: Annotated[
         tuple[CurrentUserOut, UserSession],
         Depends(require_circulation_permission("circulation.view")),
     ],
 ) -> dict:
-    parsed_id = _positive_id(checkout_id)
+    parsed_id = _positive_id(checkout_id, message="That loan was not found.")
     payload, _session = user
     include_barcode = "catalog.barcode.view" in payload.permissions
     client = _koha_client()
@@ -261,6 +264,8 @@ def loan_detail(
         return get_loan(client, parsed_id, include_barcode=include_barcode)
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc, not_found="That loan was not found.")
 
 
 @router.get("/history")
@@ -291,6 +296,8 @@ def renewal_preview_route(
         return renewal_preview(client, barcode=barcode, checkout_id=checkout_id)
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.post("/checkouts")
@@ -308,7 +315,18 @@ def checkout(
     request_id = _parse_uuid(raw.get("request_id"))
     patron_id = raw.get("patron_id")
     item_ids = raw.get("item_ids")
-    if not isinstance(patron_id, int) or not isinstance(item_ids, list):
+    if not isinstance(patron_id, int) or isinstance(patron_id, bool) or not isinstance(item_ids, list):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "validation_error",
+                "message": "That request is not valid.",
+            },
+        )
+    parsed_items = [
+        item_id for item_id in item_ids if isinstance(item_id, int) and not isinstance(item_id, bool)
+    ]
+    if len(parsed_items) != len(item_ids):
         raise HTTPException(
             status_code=422,
             detail={
@@ -324,10 +342,12 @@ def checkout(
             payload.user.id,
             request_id=request_id,
             patron_id=patron_id,
-            item_ids=[int(x) for x in item_ids],
+            item_ids=parsed_items,
         )
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.post("/checkins")
@@ -345,7 +365,7 @@ def checkin(
     request_id = _parse_uuid(raw.get("request_id"))
     item_id = raw.get("item_id")
     confirm = raw.get("confirm", False)
-    if not isinstance(item_id, int):
+    if not isinstance(item_id, int) or isinstance(item_id, bool) or not isinstance(confirm, bool):
         raise HTTPException(
             status_code=422,
             detail={
@@ -361,10 +381,12 @@ def checkin(
             payload.user.id,
             request_id=request_id,
             item_id=item_id,
-            confirm=bool(confirm),
+            confirm=confirm,
         )
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.post("/renewals")
@@ -381,7 +403,7 @@ def renew(
     _assert_write_csrf(request, session_row)
     request_id = _parse_uuid(raw.get("request_id"))
     checkout_id = raw.get("checkout_id")
-    if not isinstance(checkout_id, int):
+    if not isinstance(checkout_id, int) or isinstance(checkout_id, bool):
         raise HTTPException(
             status_code=422,
             detail={
@@ -400,33 +422,46 @@ def renew(
         )
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.post("/requests/{request_id}/verify")
 def verify_request_route(
-    request_id: uuid.UUID,
+    request_id: str,
     request: Request,
     db: Annotated[Session, Depends(get_db_session)],
 ) -> dict:
     raw_token = request.cookies.get("libraryhub_session")
     try:
-        payload, _session = load_session(db, raw_token)
+        payload, session_row = load_session(db, raw_token)
     except AuthError as exc:
         raise HTTPException(
             status_code=exc.status_code,
             detail={"code": exc.code, "message": exc.message},
         ) from exc
 
-    row = load_request(db, request_id)
+    try:
+        parsed_id = uuid.UUID(request_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "That resource was not found."},
+        ) from exc
+
+    row = load_request(db, parsed_id)
     if row is None:
         raise _NOT_FOUND
 
     perm = _ACTION_PERMISSION.get(row.action)
     if perm is None or perm not in payload.permissions:
         raise _CIRCULATION_PERMISSION_DENIED
+    _assert_write_csrf(request, session_row)
 
     client = _koha_client()
     try:
         return verify_request(db, client, row)
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
