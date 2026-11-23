@@ -106,7 +106,7 @@ export function RenewPanel({ permissions, onResult }: RenewPanelProps) {
           checkout_id: preview.checkout_id,
         }),
       });
-      onResult(body);
+      onResult({ ...body, circulation_action: "renew" });
       playTone(body, readMuted());
       setConfirmOpen(false);
       if (scanRef.current) {

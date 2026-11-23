@@ -52,6 +52,8 @@ function readMuted(): boolean {
 export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
   const canCheckin = permissions.includes("circulation.checkin");
   const scanRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
+  const sessionCount = useRef(0);
   const [scanError, setScanError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [capabilities, setCapabilities] = useState<CirculationCapabilities | null>(
@@ -84,22 +86,26 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
             confirm: sendConfirm,
           }),
         });
-        onResult(body);
+        onResult({ ...body, circulation_action: "checkin" });
         playTone(body, readMuted());
         const title = typeof body.title === "string" ? body.title : "Item";
         const outcome =
           typeof body.outcome === "string" ? body.outcome : "confirmed";
-        setSessionRows((rows) => [
-          {
-            id: crypto.randomUUID(),
-            title,
-            barcode: null,
-            outcome,
-            returnedDate:
-              typeof body.returned_date === "string" ? body.returned_date : null,
-          },
-          ...rows,
-        ]);
+        setSessionRows((rows) => {
+          const next = [
+            {
+              id: crypto.randomUUID(),
+              title,
+              barcode: null,
+              outcome,
+              returnedDate:
+                typeof body.returned_date === "string" ? body.returned_date : null,
+            },
+            ...rows,
+          ];
+          sessionCount.current = next.length;
+          return next;
+        });
         setConfirmItemId(null);
         setConfirmMessage("");
         if (scanRef.current) {
@@ -122,9 +128,14 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
 
   const resolveAndCheckin = useCallback(
     async (barcode: string) => {
-      if (!canCheckin || submitting) {
+      if (!canCheckin || busyRef.current) {
         return;
       }
+      if (sessionCount.current >= 20) {
+        setScanError("The scan queue is full.");
+        return;
+      }
+      busyRef.current = true;
       setScanError(null);
       try {
         const item = await fetchApi<DeskItem>(
@@ -141,9 +152,11 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
           scanRef.current.value = "";
           scanRef.current.focus();
         }
+      } finally {
+        busyRef.current = false;
       }
     },
-    [canCheckin, postCheckin, submitting],
+    [canCheckin, postCheckin],
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -181,16 +194,11 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          Returns this session: {sessionRows.length}
-        </span>
-        {!canCheckin ? (
-          <span className="text-sm text-muted-foreground">
-            You do not have permission for this action.
-          </span>
-        ) : null}
-      </div>
+      {!canCheckin ? (
+        <p className="text-sm text-muted-foreground">
+          You do not have permission for this action.
+        </p>
+      ) : null}
 
       {sessionRows.length > 0 ? (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">

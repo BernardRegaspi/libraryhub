@@ -90,6 +90,12 @@ export function CheckoutPanel({
   const canCheckout = permissions.includes("circulation.checkout");
   const cardRef = useRef<HTMLInputElement>(null);
   const itemRef = useRef<HTMLInputElement>(null);
+  const itemsRef = useRef(items);
+  const pendingBarcodes = useRef<string[]>([]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -127,30 +133,42 @@ export function CheckoutPanel({
         setScanError("Scan a patron card first.");
         return;
       }
-      const dup = items.some((row) => itemBarcode(row) === barcode);
+      const current = itemsRef.current;
+      const dup =
+        current.some((row) => itemBarcode(row) === barcode) ||
+        pendingBarcodes.current.includes(barcode);
       if (dup) {
         setScanError("That barcode is already in the list.");
         return;
       }
-      const queueKeys = items.map(
-        (row) => itemBarcode(row) ?? String(row.item_id ?? ""),
-      );
+      const queueKeys = [
+        ...current.map((row) => itemBarcode(row) ?? String(row.item_id ?? "")),
+        ...pendingBarcodes.current,
+      ];
       const queued = pushQueue(queueKeys, barcode);
       if (queued.error) {
         setScanError(queued.error);
         return;
       }
+      pendingBarcodes.current = [...pendingBarcodes.current, barcode];
       setScanError(null);
       try {
         const found = await fetchApi<DeskItem>(
           `/circulation/items/by-barcode?${new URLSearchParams({ barcode }).toString()}`,
         );
-        onItemsChange([...items, found]);
+        const latest = itemsRef.current;
+        const next = [...latest, found];
+        itemsRef.current = next;
+        onItemsChange(next);
       } catch (error) {
         setScanError(apiErrorMessage(error));
+      } finally {
+        pendingBarcodes.current = pendingBarcodes.current.filter(
+          (value) => value !== barcode,
+        );
       }
     },
-    [items, onItemsChange, patron],
+    [onItemsChange, patron],
   );
 
   const handleCardKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -279,7 +297,14 @@ export function CheckoutPanel({
           item_ids: itemIds,
         }),
       });
-      onResult(body);
+      onResult({
+        ...body,
+        circulation_action: "checkout",
+        items: (body.items ?? []).map((line) => ({
+          ...line,
+          title: items.find((row) => row.item_id === line.item_id)?.title,
+        })),
+      });
       playTone(body, readMuted());
       const outcomes = body.items ?? [];
       const outcomeByItem = new Map(

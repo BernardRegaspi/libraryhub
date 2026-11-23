@@ -136,8 +136,9 @@ function buildPrintInput(
         const itemId =
           typeof line.item_id === "number" ? line.item_id : undefined;
         const title =
+          (typeof line.title === "string" ? line.title : undefined) ??
           (itemId != null ? titles.get(itemId) : undefined) ??
-          (typeof line.title === "string" ? line.title : `Item ${itemId ?? "?"}`);
+          `Item ${itemId ?? "?"}`;
         return {
           outcome: typeof line.outcome === "string" ? line.outcome : "",
           title,
@@ -161,9 +162,7 @@ function buildPrintInput(
   }
   if (record.outcome === "confirmed") {
     const actionType =
-      typeof record.due_date === "string" && record.previous_due_date === undefined
-        ? "checkin"
-        : "renew";
+      record.circulation_action === "renew" ? "renew" : "checkin";
     return {
       type: actionType,
       patronName,
