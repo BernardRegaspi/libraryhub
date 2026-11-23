@@ -1,6 +1,9 @@
 export const instant = false;
 
-import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
+import { Suspense } from "react";
+
+import { CirculationDesk } from "@/components/circulation/circulation-desk";
+import { AccessDenied } from "@/components/layout/module-frame";
 import { gatePage } from "@/lib/auth/session";
 
 export default async function CirculationPage() {
@@ -10,10 +13,8 @@ export default async function CirculationPage() {
   }
 
   return (
-    <ModuleFrame
-      eyebrow="Library"
-      title="Circulation desk"
-      description="Every action is executed by Koha. Success is shown only after Koha confirms the transaction."
-    />
+    <Suspense fallback={null}>
+      <CirculationDesk permissions={gate.me.permissions} />
+    </Suspense>
   );
 }
