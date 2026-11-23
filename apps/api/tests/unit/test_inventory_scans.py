@@ -125,6 +125,36 @@ def in_progress_session(db, staff_user, mapped_department):
     return session
 
 
+@pytest.fixture
+def in_progress_session_stack_a_only(db, staff_user, mapped_department):
+    session = InventorySession(
+        department_id=mapped_department.id,
+        name="Single-location scan session",
+        description=None,
+        status="in_progress",
+        home_library_id="COLLEGE",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        expected_count=1,
+        created_by=staff_user.id,
+    )
+    db.add(session)
+    db.flush()
+    db.add(InventorySessionLocation(session_id=session.id, location="STACK-A"))
+    db.add(
+        InventoryExpectedItem(
+            session_id=session.id,
+            koha_item_id=1,
+            barcode="AAA",
+            location="STACK-A",
+            koha_status="available",
+        ),
+    )
+    db.commit()
+    return session
+
+
 def _scan_count(db, session_id: uuid.UUID) -> int:
     return (
         db.scalar(
@@ -369,3 +399,110 @@ def test_submit_scan_committed_duplicate_is_single_counter(db, staff_user, in_pr
         ),
     ).all()
     assert len(counting) == 1
+
+
+def test_submit_scan_rejects_station_location_outside_session(
+    db,
+    staff_user,
+    in_progress_session_stack_a_only,
+):
+    session_id = in_progress_session_stack_a_only.id
+    client = FakeKohaClient({"AAA": [_item(item_id=1, external_id="AAA")]})
+
+    with pytest.raises(InventoryError) as exc_info:
+        submit_scan(
+            db,
+            client,
+            session_id=session_id,
+            user_id=staff_user.id,
+            barcode="AAA",
+            station_location=None,
+            damaged=False,
+        )
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "invalid_state"
+    assert _scan_count(db, session_id) == 0
+
+    with pytest.raises(InventoryError) as exc_info:
+        submit_scan(
+            db,
+            client,
+            session_id=session_id,
+            user_id=staff_user.id,
+            barcode="AAA",
+            station_location="",
+            damaged=False,
+        )
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "invalid_state"
+    assert _scan_count(db, session_id) == 0
+
+    with pytest.raises(InventoryError) as exc_info:
+        submit_scan(
+            db,
+            client,
+            session_id=session_id,
+            user_id=staff_user.id,
+            barcode="AAA",
+            station_location="STACK-B",
+            damaged=False,
+        )
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "invalid_state"
+    assert _scan_count(db, session_id) == 0
+    assert client.calls == []
+
+
+@pytest.fixture
+def found_scan_row(db, staff_user, in_progress_session_stack_a_only):
+    session_id = in_progress_session_stack_a_only.id
+    client = FakeKohaClient({"AAA": [_item(item_id=1, external_id="AAA")]})
+    submit_scan(
+        db,
+        client,
+        session_id=session_id,
+        user_id=staff_user.id,
+        barcode="AAA",
+        station_location="STACK-A",
+        damaged=False,
+    )
+    scan = db.scalars(
+        select(InventoryScan).where(
+            InventoryScan.session_id == session_id,
+            InventoryScan.outcome == "found",
+        ),
+    ).one()
+    return scan
+
+
+def test_set_damage_rejects_empty_or_overlong_remark(db, staff_user, found_scan_row):
+    session_id = found_scan_row.session_id
+    scan_id = found_scan_row.id
+
+    with pytest.raises(InventoryError) as exc_info:
+        set_damage(
+            db,
+            session_id=session_id,
+            scan_id=scan_id,
+            user_id=staff_user.id,
+            damaged=True,
+            remark="",
+        )
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.code == "invalid_scan"
+    db.expire(found_scan_row)
+    assert found_scan_row.outcome == "found"
+
+    with pytest.raises(InventoryError) as exc_info:
+        set_damage(
+            db,
+            session_id=session_id,
+            scan_id=scan_id,
+            user_id=staff_user.id,
+            damaged=True,
+            remark="x" * 2001,
+        )
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.code == "invalid_scan"
+    db.expire(found_scan_row)
+    assert found_scan_row.outcome == "found"
