@@ -9,17 +9,20 @@ import { fetchApi } from "@/lib/api";
 import type { AuditLogRow, Paged } from "@/lib/inventory/types";
 
 import { useInventoryDesk } from "./inventory-desk";
+import { ViewEmpty, ViewLoading } from "./view-states";
 
 export function AuditView() {
   const { sessionId } = useInventoryDesk();
   const [actor, setActor] = useState("");
   const [action, setAction] = useState("");
   const [rows, setRows] = useState<AuditLogRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const loadRows = useCallback(async () => {
     if (!sessionId) {
       return;
     }
+    setLoading(true);
     const params = new URLSearchParams({ per_page: "50", page: "1" });
     if (actor.trim()) {
       params.set("actor_id", actor.trim());
@@ -31,11 +34,23 @@ export function AuditView() {
       `/inventory/sessions/${sessionId}/audit?${params}`,
     );
     setRows(data.items);
+    setLoading(false);
   }, [action, actor, sessionId]);
 
   useEffect(() => {
-    void loadRows().catch(() => setRows([]));
+    void loadRows().catch(() => {
+      setRows([]);
+      setLoading(false);
+    });
   }, [loadRows]);
+
+  if (!sessionId) {
+    return <ViewEmpty message="Select a session." />;
+  }
+
+  if (loading && rows.length === 0) {
+    return <ViewLoading label="Loading audit…" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -57,34 +72,38 @@ export function AuditView() {
         </Button>
       </section>
 
-      <section className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[48rem] text-left text-sm">
-          <thead className="border-b border-border bg-muted/30 text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Time</th>
-              <th className="px-3 py-2 font-medium">Actor</th>
-              <th className="px-3 py-2 font-medium">Action</th>
-              <th className="px-3 py-2 font-medium">Object</th>
-              <th className="px-3 py-2 font-medium">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0">
-                <td className="px-3 py-2">{new Date(row.created_at).toLocaleString()}</td>
-                <td className="px-3 py-2">{row.user_id ?? "—"}</td>
-                <td className="px-3 py-2">{row.action}</td>
-                <td className="px-3 py-2">
-                  {row.entity_type} {row.entity_id}
-                </td>
-                <td className="max-w-md whitespace-pre-wrap px-3 py-2 text-xs">
-                  {formatDetails(row.details)}
-                </td>
+      {rows.length === 0 ? (
+        <ViewEmpty message="No audit rows for this filter." />
+      ) : (
+        <section className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Time</th>
+                <th className="px-3 py-2 font-medium">Actor</th>
+                <th className="px-3 py-2 font-medium">Action</th>
+                <th className="px-3 py-2 font-medium">Object</th>
+                <th className="px-3 py-2 font-medium">Details</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-2">{new Date(row.created_at).toLocaleString()}</td>
+                  <td className="px-3 py-2">{row.user_id ?? "—"}</td>
+                  <td className="px-3 py-2">{row.action}</td>
+                  <td className="px-3 py-2">
+                    {row.entity_type} {row.entity_id}
+                  </td>
+                  <td className="max-w-md whitespace-pre-wrap px-3 py-2 text-xs">
+                    {formatDetails(row.details)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </div>
   );
 }

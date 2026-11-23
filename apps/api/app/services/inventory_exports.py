@@ -307,8 +307,10 @@ def _expected_item_row(
     scanned_at: datetime | str | None = None
     live_or_station = ""
     koha_status = item.koha_status
+    operator_id: str | None = None
     if scan is not None:
         if scan.operator_id is not None:
+            operator_id = str(scan.operator_id)
             operator_name = context.operators.get(scan.operator_id, "")
         scanned_at = scan.created_at
         live_or_station = scan.station_location or scan.live_location or ""
@@ -333,6 +335,7 @@ def _expected_item_row(
         "koha_status": koha_status,
         "scanned_at": scanned_at or "",
         "operator_name": operator_name,
+        "operator_id": operator_id,
         "remark": remark,
         "observed_damaged": scan.observed_damaged if scan is not None else False,
     }
@@ -345,6 +348,7 @@ def _scan_item_row(
     include_barcode: bool,
 ) -> dict[str, Any]:
     operator_name = ""
+    operator_id = str(scan.operator_id) if scan.operator_id is not None else None
     if scan.operator_id is not None:
         operator_name = context.operators.get(scan.operator_id, "")
     live_or_station = scan.station_location or scan.live_location or ""
@@ -367,6 +371,7 @@ def _scan_item_row(
         "koha_status": scan.live_status or "",
         "scanned_at": scan.created_at,
         "operator_name": operator_name,
+        "operator_id": operator_id,
         "remark": "",
         "observed_damaged": scan.observed_damaged,
     }

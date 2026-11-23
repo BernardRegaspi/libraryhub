@@ -51,6 +51,7 @@ export default async function InventoryPage() {
           <InventoryDesk
             permissions={me.permissions}
             departmentId={me.active_department_id as string}
+            userId={me.user.id}
           />
         </Suspense>
       )}

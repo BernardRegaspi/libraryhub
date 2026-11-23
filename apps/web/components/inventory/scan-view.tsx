@@ -27,45 +27,82 @@ import { acceptInventoryScan } from "@/lib/inventory/scan";
 import type { InventoryItemRow, Paged, ScanResponse, SessionSummary } from "@/lib/inventory/types";
 
 import { useInventoryDesk } from "./inventory-desk";
+import { KohaUnavailableBanner, ViewEmpty, ViewLoading } from "./view-states";
+
+const COUNTING = new Set([
+  "found",
+  "misplaced",
+  "damaged",
+  "withdrawn",
+  "unexpected",
+]);
+
+type LocalScanRow = {
+  key: string;
+  title: string;
+  condition: string;
+};
 
 export function ScanView() {
-  const { sessionId, session, permissions, refreshSession } = useInventoryDesk();
+  const { sessionId, session, permissions, capabilities, userId, refreshSession } =
+    useInventoryDesk();
   const scanRef = useRef<HTMLInputElement>(null);
   const inflightRef = useRef<string | null>(null);
   const [barcode, setBarcode] = useState("");
   const [flagDamaged, setFlagDamaged] = useState(false);
   const [stationLocation, setStationLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ScanResponse | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
-  const [recent, setRecent] = useState<InventoryItemRow[]>([]);
+  const [mineRows, setMineRows] = useState<LocalScanRow[]>([]);
 
   const canManage = permissions.includes("inventory.manage");
   const sessionLocations = useMemo(() => session?.locations ?? [], [session?.locations]);
   const needsStation = sessionLocations.length > 0;
+  const kohaBlocked = capabilities?.item_list === false;
 
   const loadSide = useCallback(async () => {
     if (!sessionId) {
       return;
     }
-    const [sum, items] = await Promise.all([
-      fetchApi<SessionSummary>(`/inventory/sessions/${sessionId}/summary`),
-      fetchApi<Paged<InventoryItemRow>>(
-        `/inventory/sessions/${sessionId}/items?condition=all&sort=scanned_at&direction=desc&per_page=20`,
-      ),
-    ]);
-    setSummary(sum);
-    setRecent(
-      items.items.filter((row) => row.scanned_at && row.scanned_at !== ""),
-    );
-  }, [sessionId]);
+    setLoading(true);
+    try {
+      const [sum, items] = await Promise.all([
+        fetchApi<SessionSummary>(`/inventory/sessions/${sessionId}/summary`),
+        fetchApi<Paged<InventoryItemRow>>(
+          `/inventory/sessions/${sessionId}/items?condition=all&sort=scanned_at&direction=desc&per_page=50`,
+        ),
+      ]);
+      setSummary(sum);
+      const fromApi = items.items
+        .filter(
+          (row) =>
+            row.scanned_at &&
+            COUNTING.has(row.condition) &&
+            (row.operator_id == null || row.operator_id === userId),
+        )
+        .map((row) => ({
+          key: row.scan_id ?? `${row.expected_item_id}-${row.scanned_at}`,
+          title: row.title || "Item",
+          condition: row.condition,
+        }));
+      setMineRows((current) => {
+        const apiKeys = new Set(fromApi.map((row) => row.key));
+        const locals = current.filter((row) => !apiKeys.has(row.key));
+        return [...locals, ...fromApi].slice(0, 20);
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId, userId]);
 
   useEffect(() => {
     scanRef.current?.focus();
     void loadSide().catch(() => {
       setSummary(null);
-      setRecent([]);
+      setLoading(false);
     });
   }, [loadSide]);
 
@@ -107,6 +144,18 @@ export function ScanView() {
       if (body.koha_item_id != null) {
         setFlagDamaged(false);
       }
+      if (body.counts) {
+        setMineRows((rows) =>
+          [
+            {
+              key: body.id ?? `${accepted.value}-${Date.now()}`,
+              title: body.title ?? "Item",
+              condition: body.outcome,
+            },
+            ...rows,
+          ].slice(0, 20),
+        );
+      }
       setBarcode("");
       await loadSide();
       await refreshSession();
@@ -141,12 +190,18 @@ export function ScanView() {
     void submitScan();
   };
 
+  if (kohaBlocked) {
+    return <KohaUnavailableBanner />;
+  }
+
   if (session?.status !== "in_progress") {
     return (
-      <p className="text-sm text-muted-foreground">
-        Scanning is available while the session is in progress.
-      </p>
+      <ViewEmpty message="Scanning is available while the session is in progress." />
     );
+  }
+
+  if (loading && !summary) {
+    return <ViewLoading label="Loading scan view…" />;
   }
 
   return (
@@ -258,12 +313,12 @@ export function ScanView() {
             <CardTitle className="text-base">Your counting scans</CardTitle>
           </CardHeader>
           <CardContent className="max-h-64 space-y-2 overflow-y-auto text-sm">
-            {recent.length === 0 ? (
-              <p className="text-muted-foreground">No scans yet.</p>
+            {mineRows.length === 0 ? (
+              <ViewEmpty message="No counting scans from you yet." />
             ) : (
-              recent.map((row, index) => (
-                <div key={`${row.scan_id ?? index}`} className="border-b pb-2 last:border-0">
-                  <p className="font-medium">{row.title || "Item"}</p>
+              mineRows.map((row) => (
+                <div key={row.key} className="border-b border-border pb-2 last:border-0">
+                  <p className="font-medium">{row.title}</p>
                   <p className="text-muted-foreground">{row.condition}</p>
                 </div>
               ))

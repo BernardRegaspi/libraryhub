@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ApiError, fetchApi } from "@/lib/api";
 import type { InventoryOperator, InventorySession } from "@/lib/inventory/types";
 
+import { KOHA_UNAVAILABLE } from "./view-states";
 import { useInventoryDesk } from "./inventory-desk";
 
 type SessionDialogProps = {
@@ -32,8 +33,6 @@ type SessionDialogProps = {
   onCreated: (sessionId: string) => void;
   onStarted: () => void;
 };
-
-const KOHA_UNAVAILABLE = "This Koha operation is not available.";
 
 function Field({
   label,
@@ -69,8 +68,7 @@ export function SessionDialog({
   const [error, setError] = useState<string | null>(null);
 
   const homeLibrary = scopeOptions?.home_library_id ?? null;
-  const saveBlocked = !homeLibrary;
-  const startBlocked = !capabilities?.item_list || !homeLibrary;
+  const actionsBlocked = !capabilities?.item_list || !homeLibrary;
 
   useEffect(() => {
     if (!open) {
@@ -107,7 +105,7 @@ export function SessionDialog({
   }, [name, startOn]);
 
   const saveDraft = useCallback(async () => {
-    if (!validate() || saveBlocked) {
+    if (!validate() || actionsBlocked) {
       return;
     }
     setSubmitting("draft");
@@ -125,10 +123,10 @@ export function SessionDialog({
     } finally {
       setSubmitting(null);
     }
-  }, [buildBody, onCreated, onOpenChange, refreshSessions, saveBlocked, validate]);
+  }, [actionsBlocked, buildBody, onCreated, onOpenChange, refreshSessions, validate]);
 
   const startSession = useCallback(async () => {
-    if (!validate() || startBlocked) {
+    if (!validate() || actionsBlocked) {
       return;
     }
     setSubmitting("start");
@@ -150,7 +148,7 @@ export function SessionDialog({
     } finally {
       setSubmitting(null);
     }
-  }, [buildBody, onCreated, onOpenChange, onStarted, refreshSessions, startBlocked, validate]);
+  }, [actionsBlocked, buildBody, onCreated, onOpenChange, onStarted, refreshSessions, validate]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,7 +245,7 @@ export function SessionDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={submitting !== null || saveBlocked}
+            disabled={submitting !== null || actionsBlocked}
             onClick={() => void saveDraft()}
           >
             Save draft
@@ -255,7 +253,7 @@ export function SessionDialog({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               type="button"
-              disabled={submitting !== null || startBlocked}
+              disabled={submitting !== null || actionsBlocked}
               onClick={() => void startSession()}
             >
               Start and pull snapshot

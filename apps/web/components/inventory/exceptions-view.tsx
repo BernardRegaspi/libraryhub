@@ -11,6 +11,7 @@ import type { InventoryItemRow, ItemCondition, Paged } from "@/lib/inventory/typ
 
 import { useInventoryDesk } from "./inventory-desk";
 import { ItemDrawer } from "./item-drawer";
+import { ViewEmpty, ViewLoading } from "./view-states";
 
 const TABS: { id: ItemCondition; label: string }[] = [
   { id: "all", label: "All" },
@@ -31,6 +32,7 @@ export function ExceptionsView() {
   const [remark, setRemark] = useState("");
   const [drawerRow, setDrawerRow] = useState<InventoryItemRow | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const canManage = permissions.includes("inventory.manage");
 
@@ -38,6 +40,7 @@ export function ExceptionsView() {
     if (!sessionId) {
       return;
     }
+    setLoading(true);
     const params = new URLSearchParams({
       condition,
       per_page: "50",
@@ -56,10 +59,14 @@ export function ExceptionsView() {
     );
     setRows(data.items);
     setSelected(new Set());
+    setLoading(false);
   }, [condition, location, query, sessionId]);
 
   useEffect(() => {
-    void loadRows().catch(() => setRows([]));
+    void loadRows().catch(() => {
+      setRows([]);
+      setLoading(false);
+    });
   }, [loadRows]);
 
   const unverifiedIds = useMemo(
@@ -104,6 +111,14 @@ export function ExceptionsView() {
       setError(err instanceof ApiError ? err.message : "Mark not found failed.");
     }
   };
+
+  if (!sessionId) {
+    return <ViewEmpty message="Select a session." />;
+  }
+
+  if (loading && rows.length === 0) {
+    return <ViewLoading label="Loading exceptions…" />;
+  }
 
   return (
     <div className="space-y-4">
@@ -157,6 +172,9 @@ export function ExceptionsView() {
         </div>
       ) : null}
 
+      {rows.length === 0 ? (
+        <ViewEmpty message="No rows match this filter." />
+      ) : (
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[64rem] text-left text-sm">
           <thead className="border-b border-border bg-muted/30 text-muted-foreground">
@@ -215,6 +233,7 @@ export function ExceptionsView() {
           </tbody>
         </table>
       </div>
+      )}
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <p className="text-xs text-muted-foreground">

@@ -96,6 +96,7 @@ export type InventoryItemRow = {
   koha_status: string;
   scanned_at: string;
   operator_name: string;
+  operator_id?: string | null;
   remark: string;
   observed_damaged?: boolean;
 };

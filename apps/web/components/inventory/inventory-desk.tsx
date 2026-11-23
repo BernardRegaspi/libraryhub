@@ -62,6 +62,7 @@ const VIEWS: { id: InventoryView; label: string }[] = [
 
 export type InventoryDeskContextValue = {
   permissions: string[];
+  userId: string;
   departmentId: string;
   sessionId: string | null;
   session: InventorySession | null;
@@ -69,6 +70,9 @@ export type InventoryDeskContextValue = {
   scopeOptions: ScopeOptions | null;
   refreshSession: () => Promise<void>;
   refreshSessions: () => Promise<void>;
+  selectSession: (id: string) => void;
+  startSession: (id: string) => Promise<void>;
+  setView: (view: InventoryView) => void;
 };
 
 const InventoryDeskContext = createContext<InventoryDeskContextValue | null>(null);
@@ -84,9 +88,10 @@ export function useInventoryDesk(): InventoryDeskContextValue {
 type InventoryDeskProps = {
   permissions: string[];
   departmentId: string;
+  userId: string;
 };
 
-export function InventoryDesk({ permissions, departmentId }: InventoryDeskProps) {
+export function InventoryDesk({ permissions, departmentId, userId }: InventoryDeskProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const view = parseInventoryView(searchParams);
@@ -157,6 +162,24 @@ export function InventoryDesk({ permissions, departmentId }: InventoryDeskProps)
     [router, searchParams],
   );
 
+  const selectSession = useCallback((id: string) => {
+    setSessionId(id);
+  }, []);
+
+  const startSession = useCallback(
+    async (id: string) => {
+      if (!capabilities?.item_list) {
+        return;
+      }
+      await fetchApi(`/inventory/sessions/${id}/start`, { method: "POST" });
+      setSessionId(id);
+      await refreshSessions();
+      await fetchApi<InventorySession>(`/inventory/sessions/${id}`).then(setSession);
+      setView("scan");
+    },
+    [capabilities?.item_list, refreshSessions, setView],
+  );
+
   const runExport = useCallback(
     async (kind: "findings" | "filter" | "unverified" | "work_order", format: "csv" | "xlsx") => {
       if (!sessionId) {
@@ -175,6 +198,7 @@ export function InventoryDesk({ permissions, departmentId }: InventoryDeskProps)
   const contextValue = useMemo(
     () => ({
       permissions,
+      userId,
       departmentId,
       sessionId,
       session,
@@ -182,16 +206,23 @@ export function InventoryDesk({ permissions, departmentId }: InventoryDeskProps)
       scopeOptions,
       refreshSession,
       refreshSessions,
+      selectSession,
+      startSession,
+      setView,
     }),
     [
-      permissions,
-      departmentId,
-      sessionId,
-      session,
       capabilities,
-      scopeOptions,
+      departmentId,
+      permissions,
       refreshSession,
       refreshSessions,
+      selectSession,
+      session,
+      sessionId,
+      scopeOptions,
+      setView,
+      startSession,
+      userId,
     ],
   );
 
@@ -280,7 +311,7 @@ export function InventoryDesk({ permissions, departmentId }: InventoryDeskProps)
 
         {sessionId ? (
           <div className="min-w-0">
-            {view === "overview" ? <OverviewView onOpenScan={() => setView("scan")} /> : null}
+            {view === "overview" ? <OverviewView /> : null}
             {view === "scan" ? <ScanView /> : null}
             {view === "exceptions" ? <ExceptionsView /> : null}
             {view === "adjustments" ? <AdjustmentsView /> : null}
