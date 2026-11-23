@@ -58,6 +58,23 @@ Patron delete, fine payments, extended attributes, password changes, and the pub
 
 On 2026-11-19 the configured staff host’s OpenAPI document identified Koha `25.06.00`. That text records what the host reported on that date; ULMS does not hardcode a Koha version at runtime.
 
+## Circulation
+
+Circulation transactions stay in Koha. ULMS stores `circulation_requests` and audit rows only. It does not copy open loans into PostgreSQL.
+
+The browser calls ULMS only under `/api/v1/circulation` for capabilities, patron and item lookups, checkout, check-in, renewal, verify, patron-scoped current loans, and history when that capability is recorded. The API server uses the Koha staff REST API entries recorded in `apps/api/app/integrations/koha/circulation.py`.
+
+Current loans use `GET /patrons/{patron_id}/checkouts` with `x-koha-embed: item.biblio` until a global checkout list is recorded from the host OpenAPI document. Checkout, check-in, renewal, history, single-loan reads, and renewal preview remain unsupported in code until a maintainer runs:
+
+```bash
+cd apps/api
+python -m app.scripts.koha_circulation_capabilities
+```
+
+and copies the printed `METHOD path` lines into this document and into the capability table. Do not guess paths when the host cannot be read.
+
+ULMS never sends a Koha override header. Due dates and fines come only from Koha responses.
+
 ## Related docs
 
 - `plan/plan.md` — product scope
