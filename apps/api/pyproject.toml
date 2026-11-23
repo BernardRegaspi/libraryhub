@@ -17,6 +17,7 @@ dependencies = [
   "httpx",
   "psycopg[binary]>=3",
   "pwdlib[argon2]>=0.2",
+  "openpyxl",
 ]
 
 [project.optional-dependencies]
