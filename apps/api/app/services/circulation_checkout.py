@@ -66,8 +66,14 @@ def submit_checkout(
             request_unknown = True
             outcomes.extend({"item_id": late, "outcome": "unsent"} for late in item_ids[len(outcomes) :])
             break
-        except KohaError:
-            outcomes.append({"item_id": item_id, "outcome": "refused", "message": "Koha refused this transaction."})
+        except KohaError as exc:
+            outcomes.append(
+                {
+                    "item_id": item_id,
+                    "outcome": "refused",
+                    "message": _refusal_message(exc),
+                },
+            )
             outcomes.extend({"item_id": late, "outcome": "unsent"} for late in item_ids[len(outcomes) :])
             break
         except RuntimeError:
@@ -93,3 +99,16 @@ def submit_checkout(
     )
     db.commit()
     return replay_response(row)
+
+
+def _refusal_message(exc: KohaError) -> str:
+    text = getattr(exc, "koha_message", None)
+    if (
+        isinstance(text, str)
+        and text
+        and len(text) < 200
+        and "\n" not in text
+        and "<" not in text
+    ):
+        return text
+    return "Koha refused this transaction."

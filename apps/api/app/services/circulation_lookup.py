@@ -5,7 +5,7 @@ import re
 
 from app.integrations.koha.availability import item_status
 from app.integrations.koha.exceptions import KohaError
-from app.services.circulation_errors import CirculationError, _INVALID_SCAN
+from app.services.circulation_errors import _INVALID_SCAN, CirculationError
 from app.services.patrons import directory_item
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -39,7 +39,14 @@ def desk_patron(
     *,
     include_barcode: bool,
 ) -> dict:
-    row = client.get_patron(patron_id, embed="checkouts+count,overdues+count")
+    rows = client.search_patrons(
+        {"q": json.dumps({"patron_id": patron_id}), "_per_page": 1},
+        embed="checkouts+count,overdues+count",
+    )
+    if rows:
+        row = rows[0]
+    else:
+        row = client.get_patron(patron_id)
     item = directory_item(row, categories, libraries)
     try:
         balance = client.get_patron_balance(patron_id)

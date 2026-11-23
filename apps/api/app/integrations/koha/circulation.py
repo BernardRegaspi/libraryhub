@@ -22,7 +22,10 @@ class CirculationCapabilities:
 
 
 def get_circulation_capabilities() -> CirculationCapabilities:
-    return CirculationCapabilities()
+    return CirculationCapabilities(
+        checkout=WriteCapability("POST", "/checkouts"),
+        history=WriteCapability("GET", "/checkouts"),
+    )
 
 
 def capabilities_payload(caps: CirculationCapabilities) -> dict:

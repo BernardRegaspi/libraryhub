@@ -23,20 +23,27 @@ class FakeClient:
         self._patrons = patrons or []
         self._items = items or []
         self._balance_error = balance_error
+        self.card_search: dict | None = None
         self.last_patron_search: dict | None = None
         self.last_item_search: dict | None = None
         self.last_patron_embed: str | None = None
+        self.last_list_embed: str | None = None
 
-    def search_patrons(self, params: dict) -> list[dict]:
+    def search_patrons(self, params: dict, *, embed: str | None = None) -> list[dict]:
         self.last_patron_search = params
+        self.last_list_embed = embed
         q = params.get("q")
         if not isinstance(q, str):
             return []
         query = json.loads(q)
         card = query.get("cardnumber")
-        if not isinstance(card, str):
-            return []
-        return [row for row in self._patrons if row.get("cardnumber") == card]
+        if isinstance(card, str):
+            self.card_search = params
+            return [row for row in self._patrons if row.get("cardnumber") == card]
+        patron_id = query.get("patron_id")
+        if isinstance(patron_id, int):
+            return [row for row in self._patrons if row.get("patron_id") == patron_id]
+        return []
 
     def search_items(self, params: dict) -> list[dict]:
         self.last_item_search = params
@@ -106,13 +113,13 @@ def test_patron_by_card_exact_hit_and_trimmed_query():
     )
     patron = patron_by_card(client, {}, {"CPL": "College"}, "C1\r")
     assert patron["patron_id"] == 1
-    assert client.last_patron_search is not None
-    assert "cardnumber" not in client.last_patron_search
-    q = json.loads(client.last_patron_search["q"])
+    assert client.card_search is not None
+    assert "cardnumber" not in client.card_search
+    q = json.loads(client.card_search["q"])
     assert q == {"cardnumber": "C1"}
     assert q["cardnumber"] != "C1\r"
     patron_by_card(client, {}, {}, "C1 ")
-    q2 = json.loads(client.last_patron_search["q"])
+    q2 = json.loads(client.card_search["q"])
     assert q2["cardnumber"] == "C1"
     with pytest.raises(CirculationError) as short_exc:
         patron_by_card(client, {}, {}, "C")
@@ -228,4 +235,7 @@ def test_desk_patron_keeps_cardnumber_and_null_balance_on_koha_error():
     item = desk_patron(client, {}, {"CPL": "College"}, 4, include_barcode=False)
     assert item["cardnumber"] == "C9"
     assert item["balance"] is None
-    assert client.last_patron_embed == "checkouts+count,overdues+count"
+    assert item["checkouts_count"] == 2
+    assert item["overdues_count"] == 0
+    assert client.last_list_embed == "checkouts+count,overdues+count"
+    assert client.last_patron_embed is None

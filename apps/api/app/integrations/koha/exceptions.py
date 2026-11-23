@@ -24,7 +24,8 @@ class KohaResponseError(KohaError):
 
 
 class KohaRequestError(KohaResponseError):
-    def __init__(self, status_code: int, fields: list[str]) -> None:
+    def __init__(self, status_code: int, fields: list[str], message: str | None = None) -> None:
         super().__init__()
         self.status_code = status_code
         self.fields = fields
+        self.koha_message = message

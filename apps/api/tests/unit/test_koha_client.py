@@ -246,3 +246,58 @@ def test_timeout_is_typed():
         pass
     else:
         raise AssertionError("expected KohaTimeoutError")
+
+
+def test_list_open_checkouts_omits_checked_in_filter():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        assert "checked_in" not in request.url.params
+        assert request.headers.get("x-koha-embed") == "item.biblio,patron"
+        return httpx.Response(200, json=[{"checkout_id": 6}], headers={"X-Total-Count": "1"})
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    rows, total = client.list_checkout_records(checked_in=False, page=1, per_page=20)
+    assert rows == [{"checkout_id": 6}]
+    assert total == 1
+
+
+def test_list_checked_in_checkouts_sends_filter_and_embed():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        assert request.url.params["checked_in"] == "1"
+        assert request.url.params["_page"] == "1"
+        assert request.url.params["_per_page"] == "20"
+        assert request.headers.get("x-koha-embed") == "item.biblio,patron"
+        return httpx.Response(
+            200,
+            json=[{"checkout_id": 1}],
+            headers={"X-Total-Count": "4"},
+        )
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    rows, total = client.list_checked_in_checkouts(page=1, per_page=20)
+    assert rows == [{"checkout_id": 1}]
+    assert total == 4
+
+
+def test_post_checkout_sends_patron_and_item():
+    seen: list[tuple[str, bytes]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        seen.append((request.url.path, request.content))
+        if request.url.path.endswith("/checkouts"):
+            return httpx.Response(
+                201,
+                json={"checkout_id": 9, "due_date": "2026-12-04", "item_id": 3, "patron_id": 5},
+            )
+        raise AssertionError(request.url.path)
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    body = client.post_checkout(5, 3)
+    assert body["checkout_id"] == 9
+    assert body["due_date"] == "2026-12-04"
+    assert seen == [("/api/v1/checkouts", b'{"patron_id": 5, "item_id": 3}')]

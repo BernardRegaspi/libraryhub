@@ -304,14 +304,25 @@ def loan_detail(
 
 @router.get("/history")
 def history_list(
-    _user: Annotated[
+    user: Annotated[
         tuple[CurrentUserOut, UserSession],
         Depends(require_circulation_permission("circulation.view")),
     ],
+    page: Annotated[str, Query()] = "1",
+    per_page: Annotated[str, Query()] = "20",
 ) -> dict:
+    payload, _session = user
+    parsed_page = _bounded_query(page, low=1, high=10000)
+    parsed_per_page = _bounded_query(per_page, low=1, high=20)
+    include_barcode = "catalog.barcode.view" in payload.permissions
     client = _koha_client()
     try:
-        return list_history(client)
+        return list_history(
+            client,
+            page=parsed_page,
+            per_page=parsed_per_page,
+            include_barcode=include_barcode,
+        )
     except CirculationError as exc:
         _raise_circulation(exc)
     except KohaError as exc:

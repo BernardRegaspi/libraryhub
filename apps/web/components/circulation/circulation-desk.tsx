@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ModuleFrame } from "@/components/layout/module-frame";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,8 @@ import { CheckoutPanel } from "./checkout-panel";
 import { HistoryPanel } from "./history-panel";
 import { LoansPanel } from "./loans-panel";
 import { RenewPanel } from "./renew-panel";
-import { ResultPanel } from "./result-panel";
+
+const MUTE_KEY = "circulation-mute";
 
 const TABS: CirculationTab[] = ["checkout", "checkin", "renew", "loans", "history"];
 
@@ -33,9 +34,25 @@ export function CirculationDesk({ permissions }: CirculationDeskProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = parseCirculationTab(searchParams);
-  const [result, setResult] = useState<unknown>(null);
   const [checkoutPatron, setCheckoutPatron] = useState<DeskPatron | null>(null);
   const [checkoutItems, setCheckoutItems] = useState<DeskItem[]>([]);
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    try {
+      setMuted(sessionStorage.getItem(MUTE_KEY) === "true");
+    } catch {
+      setMuted(false);
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted((current) => {
+      const next = !current;
+      sessionStorage.setItem(MUTE_KEY, next ? "true" : "false");
+      return next;
+    });
+  }, []);
 
   const setTab = useCallback(
     (next: CirculationTab) => {
@@ -54,8 +71,8 @@ export function CirculationDesk({ permissions }: CirculationDeskProps) {
       description="Koha confirms every checkout, check-in, and renewal."
       hideModuleSentence
     />
-    <div className="grid gap-6 px-4 pb-8 sm:px-6 lg:grid-cols-[1fr_320px] lg:px-8">
-      <div className="space-y-4">
+    <div className="space-y-4 px-4 pb-8 sm:px-6 lg:px-8">
+      <div className="flex flex-wrap items-center gap-2">
         <nav className="flex flex-wrap gap-2" aria-label="Circulation tabs">
           {TABS.map((name) => (
             <Button
@@ -68,32 +85,23 @@ export function CirculationDesk({ permissions }: CirculationDeskProps) {
             </Button>
           ))}
         </nav>
-        {tab === "checkout" ? (
-          <CheckoutPanel
-            permissions={permissions}
-            patron={checkoutPatron}
-            items={checkoutItems}
-            onPatronChange={setCheckoutPatron}
-            onItemsChange={setCheckoutItems}
-            onResult={setResult}
-          />
-        ) : null}
-        {tab === "checkin" ? (
-          <CheckinPanel permissions={permissions} onResult={setResult} />
-        ) : null}
-        {tab === "renew" ? (
-          <RenewPanel permissions={permissions} onResult={setResult} />
-        ) : null}
-        {tab === "loans" ? <LoansPanel permissions={permissions} /> : null}
-        {tab === "history" ? (
-          <HistoryPanel permissions={permissions} />
-        ) : null}
+        <Button type="button" variant="outline" onClick={toggleMute}>
+          {muted ? "Unmute" : "Mute"}
+        </Button>
       </div>
-      <ResultPanel
-        result={result}
-        patron={checkoutPatron}
-        checkoutItems={checkoutItems}
-      />
+      {tab === "checkout" ? (
+        <CheckoutPanel
+          permissions={permissions}
+          patron={checkoutPatron}
+          items={checkoutItems}
+          onPatronChange={setCheckoutPatron}
+          onItemsChange={setCheckoutItems}
+        />
+      ) : null}
+      {tab === "checkin" ? <CheckinPanel permissions={permissions} /> : null}
+      {tab === "renew" ? <RenewPanel permissions={permissions} /> : null}
+      {tab === "loans" ? <LoansPanel permissions={permissions} /> : null}
+      {tab === "history" ? <HistoryPanel permissions={permissions} /> : null}
     </div>
   </>
   );

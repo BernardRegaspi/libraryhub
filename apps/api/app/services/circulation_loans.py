@@ -51,8 +51,35 @@ def list_loans(
     }
 
 
-def list_history(client, **kwargs) -> dict:
-    raise unsupported_write()
+def list_history(
+    client,
+    *,
+    page: int = 1,
+    per_page: int = 20,
+    include_barcode: bool = False,
+    today: date | None = None,
+) -> dict:
+    if get_circulation_capabilities().history is None:
+        raise unsupported_write()
+    if page < 1 or page > 10000 or per_page < 1 or per_page > 20:
+        raise _INVALID_SEARCH
+    merged = _merge_checkout_rows(
+        _collect_checkouts(client, checked_in=False),
+        _collect_checkouts(client, checked_in=True),
+    )
+    ref_today = today or manila_today()
+    start = (page - 1) * per_page
+    page_rows = merged[start : start + per_page]
+    items = [
+        _history_item(row, include_barcode=include_barcode, today=ref_today) for row in page_rows
+    ]
+    return {
+        "items": items,
+        "page": page,
+        "per_page": per_page,
+        "total": len(merged),
+        "has_next": start + per_page < len(merged),
+    }
 
 
 def get_loan(client, checkout_id: int, *, include_barcode: bool) -> dict:
@@ -60,6 +87,78 @@ def get_loan(client, checkout_id: int, *, include_barcode: bool) -> dict:
         raise unsupported_write()
     row = client.get_checkout(checkout_id)
     return _loan_item(row, include_barcode=include_barcode, today=manila_today())
+
+
+def _collect_checkouts(client, *, checked_in: bool) -> list[dict]:
+    collected: list[dict] = []
+    page = 1
+    while page <= 50:
+        rows, total = client.list_checkout_records(
+            checked_in=checked_in,
+            page=page,
+            per_page=20,
+        )
+        collected.extend(rows)
+        if not rows or len(rows) < 20 or (total is not None and len(collected) >= total):
+            break
+        page += 1
+    return collected
+
+
+def _merge_checkout_rows(open_rows: list[dict], returned_rows: list[dict]) -> list[dict]:
+    by_id: dict[object, dict] = {}
+    for row in [*open_rows, *returned_rows]:
+        checkout_id = row.get("checkout_id")
+        if checkout_id is None:
+            continue
+        by_id[checkout_id] = row
+
+    def sort_key(row: dict) -> tuple:
+        return (str(row.get("checkout_date") or ""), row.get("checkout_id") or 0)
+
+    return sorted(by_id.values(), key=sort_key, reverse=True)
+
+
+def _history_item(row: dict, *, include_barcode: bool, today: date) -> dict:
+    item = _loan_item(row, include_barcode=include_barcode, today=today)
+    nested = row.get("item")
+    if isinstance(nested, dict):
+        if item["call_number"] is None:
+            item["call_number"] = _blank(nested.get("callnumber"))
+        if item["item_type_id"] is None:
+            item["item_type_id"] = nested.get("item_type_id")
+        if include_barcode and "external_id" not in item and "external_id" in nested:
+            item["external_id"] = nested.get("external_id")
+    if item["library_id"] is None and row.get("library_id") is not None:
+        item["library_id"] = row.get("library_id")
+    item["type"] = "checkin" if row.get("checkin_date") else "checkout"
+    item["returned_date"] = row.get("checkin_date")
+    item["patron_name"] = _patron_name(row)
+    return item
+
+
+def _blank(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _patron_name(row: dict) -> str | None:
+    patron = row.get("patron")
+    if not isinstance(patron, dict):
+        return None
+    preferred = _blank(patron.get("preferred_name"))
+    if preferred:
+        return preferred
+    parts = [
+        part
+        for part in (_blank(patron.get("firstname")), _blank(patron.get("surname")))
+        if part
+    ]
+    if parts:
+        return " ".join(parts)
+    return None
 
 
 def _title(row: dict):

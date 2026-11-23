@@ -24,13 +24,13 @@ import type { CirculationCapabilities, DeskItem } from "@/lib/circulation/types"
 import { formatPatronDate } from "@/lib/patrons/display";
 
 import { apiErrorMessage, circulationConfirmation } from "./api-error";
+import { toastCirculationResult } from "./circulation-toast";
 import { playTone } from "./play-tone";
 
 const MUTE_KEY = "circulation-mute";
 
 type CheckinPanelProps = {
   permissions: string[];
-  onResult: (result: unknown) => void;
 };
 
 type CheckinSessionRow = {
@@ -49,7 +49,7 @@ function readMuted(): boolean {
   }
 }
 
-export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
+export function CheckinPanel({ permissions }: CheckinPanelProps) {
   const canCheckin = permissions.includes("circulation.checkin");
   const scanRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
@@ -86,7 +86,7 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
             confirm: sendConfirm,
           }),
         });
-        onResult({ ...body, circulation_action: "checkin" });
+        toastCirculationResult({ ...body, circulation_action: "checkin" });
         playTone(body, readMuted());
         const title = typeof body.title === "string" ? body.title : "Item";
         const outcome =
@@ -123,7 +123,7 @@ export function CheckinPanel({ permissions, onResult }: CheckinPanelProps) {
         setSubmitting(false);
       }
     },
-    [capabilities?.checkin_confirmation, onResult],
+    [capabilities?.checkin_confirmation],
   );
 
   const resolveAndCheckin = useCallback(

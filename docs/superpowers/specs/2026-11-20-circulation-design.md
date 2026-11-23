@@ -1,7 +1,7 @@
 # Staff circulation desk
 
 Date: 2026-11-20
-Status: draft
+Status: approved
 
 ## Purpose
 

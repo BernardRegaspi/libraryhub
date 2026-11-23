@@ -173,8 +173,9 @@ class KohaClient:
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)], headers
 
-    def search_patrons(self, params: dict) -> list[dict]:
-        body, _headers = self.get_json("/patrons", params)
+    def search_patrons(self, params: dict, *, embed: str | None = None) -> list[dict]:
+        extra_headers = {"x-koha-embed": embed} if embed else None
+        body, _headers = self.get_json("/patrons", params, extra_headers=extra_headers)
         if not isinstance(body, list):
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)]
@@ -202,6 +203,15 @@ class KohaClient:
             raise KohaResponseError
         return body.get("balance")
 
+    def post_checkout(self, patron_id: int, item_id: int) -> dict:
+        body, _headers = self.post_json(
+            "/checkouts",
+            {"patron_id": patron_id, "item_id": item_id},
+        )
+        if not isinstance(body, dict):
+            raise KohaResponseError
+        return body
+
     def create_patron(self, body: dict, *, confirm_duplicate: bool) -> dict:
         extra_headers = {"x-confirm-not-duplicate": "1"} if confirm_duplicate else None
         result, _headers = self.post_json("/patrons", body, extra_headers=extra_headers)
@@ -223,6 +233,30 @@ class KohaClient:
         if not isinstance(body, list):
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)]
+
+    def list_checkout_records(
+        self,
+        *,
+        checked_in: bool,
+        page: int,
+        per_page: int,
+    ) -> tuple[list[dict], int | None]:
+        params: dict = {"_page": page, "_per_page": per_page}
+        if checked_in:
+            params["checked_in"] = "1"
+        body, headers = self.get_json(
+            "/checkouts",
+            params=params,
+            extra_headers={"x-koha-embed": "item.biblio,patron"},
+        )
+        if not isinstance(body, list):
+            raise KohaResponseError
+        total_header = headers.get("X-Total-Count")
+        total = int(total_header) if total_header and total_header.isdigit() else None
+        return [row for row in body if isinstance(row, dict)], total
+
+    def list_checked_in_checkouts(self, *, page: int, per_page: int) -> tuple[list[dict], int | None]:
+        return self.list_checkout_records(checked_in=True, page=page, per_page=per_page)
 
     def list_holds(self, patron_id: int) -> list[dict]:
         body, _headers = self.get_json(
@@ -347,6 +381,15 @@ class KohaClient:
                 fields.append(item["path"].rsplit("/", 1)[-1])
         return fields
 
+    def _error_message(self, response: httpx.Response) -> str | None:
+        try:
+            body = response.json()
+        except json.JSONDecodeError:
+            return None
+        if isinstance(body, dict) and isinstance(body.get("error"), str):
+            return body["error"]
+        return None
+
     def _interpret(self, response: httpx.Response) -> tuple[object, httpx.Headers]:
         if response.status_code == 404:
             raise KohaNotFound
@@ -354,10 +397,11 @@ class KohaClient:
             raise KohaAuthError
         if response.status_code >= 400:
             fields = self._error_fields(response)
+            message = self._error_message(response)
             if fields is not None:
-                raise KohaRequestError(response.status_code, fields)
+                raise KohaRequestError(response.status_code, fields, message)
             if response.status_code in (400, 409):
-                raise KohaRequestError(response.status_code, [])
+                raise KohaRequestError(response.status_code, [], message)
             raise KohaResponseError
         content_type = response.headers.get("content-type", "")
         if "json" in content_type or "marc-in-json" in content_type:

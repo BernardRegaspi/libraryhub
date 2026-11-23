@@ -30,6 +30,7 @@ import {
 import type { PatronDirectoryItem, PatronSearchResponse } from "@/lib/patrons/types";
 
 import { apiErrorMessage } from "./api-error";
+import { toastCirculationResult } from "./circulation-toast";
 import { playTone } from "./play-tone";
 
 const MUTE_KEY = "circulation-mute";
@@ -40,7 +41,6 @@ type CheckoutPanelProps = {
   items: DeskItem[];
   onPatronChange: (patron: DeskPatron | null) => void;
   onItemsChange: (items: DeskItem[]) => void;
-  onResult: (result: unknown) => void;
 };
 
 type CheckoutResponse = {
@@ -85,7 +85,6 @@ export function CheckoutPanel({
   items,
   onPatronChange,
   onItemsChange,
-  onResult,
 }: CheckoutPanelProps) {
   const canCheckout = permissions.includes("circulation.checkout");
   const cardRef = useRef<HTMLInputElement>(null);
@@ -297,7 +296,7 @@ export function CheckoutPanel({
           item_ids: itemIds,
         }),
       });
-      onResult({
+      toastCirculationResult({
         ...body,
         circulation_action: "checkout",
         items: (body.items ?? []).map((line) => ({
@@ -336,14 +335,13 @@ export function CheckoutPanel({
       setSubmitting(false);
       setConfirmOpen(false);
     }
-  }, [canCheckout, items, onItemsChange, onResult, patron, submitting]);
+  }, [canCheckout, items, onItemsChange, patron, submitting]);
 
   const startConfirm = () => {
-    if (warningLines().length > 0) {
-      setConfirmOpen(true);
+    if (!patron || items.length === 0 || submitting) {
       return;
     }
-    void runCheckout();
+    setConfirmOpen(true);
   };
 
   return (
@@ -485,22 +483,36 @@ export function CheckoutPanel({
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Continue with warnings?</DialogTitle>
+            <DialogTitle>Confirm checkout</DialogTitle>
             <DialogDescription>
               Koha still decides whether these items circulate.
             </DialogDescription>
           </DialogHeader>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
-            {warningLines().map((line) => (
-              <li key={line}>{line}</li>
+          {patron ? (
+            <p className="text-sm text-foreground">
+              {displayName({ ...patron, patron_id: patron.patron_id ?? 0 })}
+              {" · "}
+              {patron.cardnumber ?? "No card"}
+            </p>
+          ) : null}
+          <ul className="space-y-1 text-sm text-foreground">
+            {items.map((item, index) => (
+              <li key={`${item.item_id ?? "item"}-${index}`}>{item.title ?? "Item"}</li>
             ))}
           </ul>
+          {warningLines().length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
+              {warningLines().map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
               Cancel
             </Button>
             <Button type="button" disabled={submitting} onClick={() => void runCheckout()}>
-              Continue
+              Confirm checkout
             </Button>
           </DialogFooter>
         </DialogContent>

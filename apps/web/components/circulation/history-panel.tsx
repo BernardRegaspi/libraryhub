@@ -122,6 +122,8 @@ export function HistoryPanel({ permissions: _permissions }: HistoryPanelProps) {
       ) : null}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading history…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No circulation records.</p>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full min-w-[32rem] text-left text-sm">

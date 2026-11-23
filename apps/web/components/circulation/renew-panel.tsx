@@ -22,13 +22,13 @@ import { submitScanValue } from "@/lib/circulation/scan";
 import { formatPatronDate } from "@/lib/patrons/display";
 
 import { apiErrorMessage } from "./api-error";
+import { toastCirculationResult } from "./circulation-toast";
 import { playTone } from "./play-tone";
 
 const MUTE_KEY = "circulation-mute";
 
 type RenewPanelProps = {
   permissions: string[];
-  onResult: (result: unknown) => void;
 };
 
 type RenewalPreview = {
@@ -54,7 +54,7 @@ function readMuted(): boolean {
   }
 }
 
-export function RenewPanel({ permissions, onResult }: RenewPanelProps) {
+export function RenewPanel({ permissions }: RenewPanelProps) {
   const canRenew = permissions.includes("circulation.renew");
   const scanRef = useRef<HTMLInputElement>(null);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export function RenewPanel({ permissions, onResult }: RenewPanelProps) {
           checkout_id: preview.checkout_id,
         }),
       });
-      onResult({ ...body, circulation_action: "renew" });
+      toastCirculationResult({ ...body, circulation_action: "renew" });
       playTone(body, readMuted());
       setConfirmOpen(false);
       if (scanRef.current) {
@@ -118,7 +118,7 @@ export function RenewPanel({ permissions, onResult }: RenewPanelProps) {
     } finally {
       setSubmitting(false);
     }
-  }, [canRenew, onResult, preview?.checkout_id, submitting]);
+  }, [canRenew, preview?.checkout_id, submitting]);
 
   const openConfirm = () => {
     const renewal = preview?.renewal;

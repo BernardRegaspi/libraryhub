@@ -1,5 +1,6 @@
 from app.integrations.koha.circulation import (
     CirculationCapabilities,
+    WriteCapability,
     capabilities_payload,
     get_circulation_capabilities,
 )
@@ -10,18 +11,18 @@ def test_default_capabilities_are_unset_except_patron_loans():
     caps = get_circulation_capabilities()
     assert isinstance(caps, CirculationCapabilities)
     assert caps.loans_scope == "patron"
-    assert caps.checkout is None
+    assert caps.checkout == WriteCapability("POST", "/checkouts")
     assert caps.checkin is None
     assert caps.renew is None
-    assert caps.history is None
+    assert caps.history == WriteCapability("GET", "/checkouts")
     assert caps.renewal_preview is None
     assert caps.checkin_confirmation is False
     assert caps.single_loan is None
     payload = capabilities_payload(caps)
-    assert payload["checkout"] is False
+    assert payload["checkout"] is True
     assert payload["checkin"] is False
     assert payload["renew"] is False
-    assert payload["history"] is False
+    assert payload["history"] is True
     assert payload["loans"]["scope"] == "patron"
     assert payload["renewal_preview"] is False
     assert payload["checkin_confirmation"] is False

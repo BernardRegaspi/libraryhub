@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { QueryProvider } from "@/components/catalog/query-provider";
 import { StaffShell } from "@/components/layout/staff-shell";
+import { Toaster } from "@/components/ui/sonner";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export const instant = false;
@@ -37,6 +38,7 @@ export default async function StaffAppLayout({
     <div className="ulms min-h-screen">
       <QueryProvider>
         <StaffShell me={me}>{children}</StaffShell>
+        <Toaster />
       </QueryProvider>
     </div>
   );

@@ -117,8 +117,8 @@ def test_librarian_checkout_unsupported_without_capability(auth_client, db, monk
         },
         headers=csrf_headers(auth_client),
     )
-    assert response.status_code == 501
-    assert response.json()["detail"]["code"] == "circulation_unsupported"
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "not_found"
 
 
 def test_checkout_without_csrf_is_rejected(auth_client, db, monkeypatch):
