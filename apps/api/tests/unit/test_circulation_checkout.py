@@ -1,8 +1,6 @@
 import uuid
 
-import pytest
-
-from app.integrations.koha.circulation import CirculationCapabilities, WriteCapability, get_circulation_capabilities
+from app.integrations.koha.circulation import CirculationCapabilities, WriteCapability
 from app.models.identity import AppUser
 from app.services.circulation_checkout import submit_checkout
 

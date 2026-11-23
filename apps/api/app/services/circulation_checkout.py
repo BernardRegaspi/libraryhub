@@ -34,7 +34,7 @@ def submit_checkout(
         raise unsupported_write()
     try:
         client.get_patron(patron_id)
-    except Exception:
+    except KohaError:
         raise CirculationError(404, "not_found", "That patron was not found.") from None
     row = begin_request(
         db,
