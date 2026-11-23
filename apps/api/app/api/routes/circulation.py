@@ -115,11 +115,29 @@ def _item_type_labels(client: KohaClient) -> dict[str, str]:
 
 
 def _positive_id(value: str, *, message: str) -> int:
-    if not value.isdigit():
+    parsed = _ascii_int(value)
+    if parsed is None or parsed < 1:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": message})
-    parsed = int(value)
-    if parsed < 1:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": message})
+    return parsed
+
+
+def _ascii_int(value: str) -> int | None:
+    if not value or any(char < "0" or char > "9" for char in value):
+        return None
+    return int(value)
+
+
+def _invalid_search() -> None:
+    raise HTTPException(
+        status_code=422,
+        detail={"code": "invalid_search", "message": "That search is not valid."},
+    )
+
+
+def _bounded_query(value: str, *, low: int, high: int | None) -> int:
+    parsed = _ascii_int(value)
+    if parsed is None or parsed < low or (high is not None and parsed > high):
+        _invalid_search()
     return parsed
 
 
@@ -219,25 +237,41 @@ def loans_list(
         tuple[CurrentUserOut, UserSession],
         Depends(require_circulation_permission("circulation.view")),
     ],
-    patron_id: Annotated[int, Query()],
+    patron_id: Annotated[str, Query()],
     q: Annotated[str, Query()] = "",
-    overdue: Annotated[bool | None, Query()] = None,
-    page: Annotated[int, Query(ge=1, le=10000)] = 1,
-    per_page: Annotated[int, Query(ge=1, le=20)] = 20,
+    overdue: Annotated[str | None, Query()] = None,
+    page: Annotated[str, Query()] = "1",
+    per_page: Annotated[str, Query()] = "20",
     sort: Annotated[str, Query()] = "due_date",
     direction: Annotated[str, Query()] = "asc",
 ) -> dict:
     payload, _session = user
+    parsed_patron = _bounded_query(patron_id, low=1, high=None)
+    parsed_page = _bounded_query(page, low=1, high=10000)
+    parsed_per_page = _bounded_query(per_page, low=1, high=20)
+    if overdue is None:
+        overdue_flag = None
+    elif overdue.casefold() == "true":
+        overdue_flag = True
+    elif overdue.casefold() == "false":
+        overdue_flag = False
+    else:
+        _invalid_search()
+        overdue_flag = None
+    if sort not in {"due_date", "title", "checkout_date"} or direction not in {"asc", "desc"}:
+        _invalid_search()
+    if len(q) > 64 or any(ord(char) < 32 or ord(char) == 127 for char in q):
+        _invalid_search()
     include_barcode = "catalog.barcode.view" in payload.permissions
     client = _koha_client()
     try:
         return list_loans(
             client,
-            patron_id=patron_id,
+            patron_id=parsed_patron,
             q=q,
-            overdue=overdue,
-            page=page,
-            per_page=per_page,
+            overdue=overdue_flag,
+            page=parsed_page,
+            per_page=parsed_per_page,
             sort=sort,
             direction=direction,
             include_barcode=include_barcode,
@@ -245,7 +279,7 @@ def loans_list(
     except CirculationError as exc:
         _raise_circulation(exc)
     except KohaError as exc:
-        _handle_koha(exc)
+        _handle_koha(exc, not_found="That patron was not found.")
 
 
 @router.get("/loans/{checkout_id}")
@@ -280,24 +314,35 @@ def history_list(
         return list_history(client)
     except CirculationError as exc:
         _raise_circulation(exc)
+    except KohaError as exc:
+        _handle_koha(exc)
 
 
 @router.get("/renewals/preview")
 def renewal_preview_route(
-    _user: Annotated[
+    user: Annotated[
         tuple[CurrentUserOut, UserSession],
         Depends(require_circulation_permission("circulation.view")),
     ],
     barcode: Annotated[str | None, Query()] = None,
     checkout_id: Annotated[int | None, Query()] = None,
 ) -> dict:
+    payload, _session = user
     client = _koha_client()
     try:
-        return renewal_preview(client, barcode=barcode, checkout_id=checkout_id)
+        preview = renewal_preview(client, barcode=barcode, checkout_id=checkout_id)
     except CirculationError as exc:
         _raise_circulation(exc)
     except KohaError as exc:
-        _handle_koha(exc)
+        message = (
+            "No current loan matches that barcode."
+            if barcode is not None
+            else "That loan was not found."
+        )
+        _handle_koha(exc, not_found=message)
+    if "catalog.barcode.view" not in payload.permissions:
+        preview.pop("external_id", None)
+    return preview
 
 
 @router.post("/checkouts")
@@ -315,7 +360,12 @@ def checkout(
     request_id = _parse_uuid(raw.get("request_id"))
     patron_id = raw.get("patron_id")
     item_ids = raw.get("item_ids")
-    if not isinstance(patron_id, int) or isinstance(patron_id, bool) or not isinstance(item_ids, list):
+    if (
+        not isinstance(patron_id, int)
+        or isinstance(patron_id, bool)
+        or patron_id < 1
+        or not isinstance(item_ids, list)
+    ):
         raise HTTPException(
             status_code=422,
             detail={

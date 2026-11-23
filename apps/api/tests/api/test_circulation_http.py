@@ -119,3 +119,69 @@ def test_librarian_checkout_unsupported_without_capability(auth_client, db, monk
     )
     assert response.status_code == 501
     assert response.json()["detail"]["code"] == "circulation_unsupported"
+
+
+def test_checkout_without_csrf_is_rejected(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="circ-lib-csrf",
+        email="circ-lib-csrf@usant.edu.ph",
+        display_name="Circ Librarian CSRF",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "circ-lib-csrf")
+    response = auth_client.post(
+        "/api/v1/circulation/checkouts",
+        json={
+            "request_id": "00000000-0000-0000-0000-000000000004",
+            "patron_id": 1,
+            "item_ids": [1],
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "csrf_failed"
+
+
+def test_checkout_rejects_non_positive_patron(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="circ-lib-patron",
+        email="circ-lib-patron@usant.edu.ph",
+        display_name="Circ Librarian Patron",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "circ-lib-patron")
+    response = auth_client.post(
+        "/api/v1/circulation/checkouts",
+        json={
+            "request_id": "00000000-0000-0000-0000-000000000005",
+            "patron_id": 0,
+            "item_ids": [1],
+        },
+        headers=csrf_headers(auth_client),
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "validation_error"
+
+
+def test_loan_search_rejects_bad_page(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="circ-lib-loans",
+        email="circ-lib-loans@usant.edu.ph",
+        display_name="Circ Librarian Loans",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "circ-lib-loans")
+    response = auth_client.get("/api/v1/circulation/loans", params={"patron_id": "5", "page": "0"})
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_search"
