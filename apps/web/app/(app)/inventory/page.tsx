@@ -1,16 +1,19 @@
 export const instant = false;
 
-import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
+import { Suspense } from "react";
+
+import { InventoryDesk } from "@/components/inventory/inventory-desk";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { AccessDenied, ModuleFrame } from "@/components/layout/module-frame";
 import { gatePage } from "@/lib/auth/session";
 
 const INVENTORY_DESCRIPTION =
-  "Plan a stocktake session by department, scan barcodes, and review exceptions.";
+  "Plan a stocktake, scan the shelf, and review exceptions.";
 
 export default async function InventoryPage() {
   const gate = await gatePage("inventory.view");
@@ -43,7 +46,14 @@ export default async function InventoryPage() {
             </CardHeader>
           </Card>
         </div>
-      ) : null}
+      ) : (
+        <Suspense fallback={null}>
+          <InventoryDesk
+            permissions={me.permissions}
+            departmentId={me.active_department_id as string}
+          />
+        </Suspense>
+      )}
     </>
   );
 }
