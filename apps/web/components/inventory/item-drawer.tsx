@@ -177,7 +177,10 @@ export function ItemDrawer({ open, onOpenChange, row, onChanged }: ItemDrawerPro
           </div>
         ) : null}
 
-        {row.condition === "not_found" && row.shelf_search_id && canManage ? (
+        {row.condition === "not_found" &&
+        row.shelf_search_id &&
+        canManage &&
+        session?.status === "in_progress" ? (
           <div className="mt-6 space-y-2">
             <Label htmlFor="reverse-remark">Return to unverified</Label>
             <Textarea

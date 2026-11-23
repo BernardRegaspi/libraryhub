@@ -9,10 +9,11 @@ import { fetchApi } from "@/lib/api";
 import type { AuditLogRow, Paged } from "@/lib/inventory/types";
 
 import { useInventoryDesk } from "./inventory-desk";
-import { ViewEmpty, ViewLoading } from "./view-states";
+import { KohaUnavailableBanner, ViewEmpty, ViewLoading } from "./view-states";
 
 export function AuditView() {
-  const { sessionId } = useInventoryDesk();
+  const { sessionId, capabilities } = useInventoryDesk();
+  const kohaItemListBlocked = capabilities?.item_list === false;
   const [actor, setActor] = useState("");
   const [action, setAction] = useState("");
   const [rows, setRows] = useState<AuditLogRow[]>([]);
@@ -54,6 +55,7 @@ export function AuditView() {
 
   return (
     <div className="space-y-4">
+      {kohaItemListBlocked ? <KohaUnavailableBanner /> : null}
       <section className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Input
           className="sm:max-w-xs"

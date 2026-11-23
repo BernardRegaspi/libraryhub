@@ -11,7 +11,7 @@ import type { InventoryItemRow, ItemCondition, Paged } from "@/lib/inventory/typ
 
 import { useInventoryDesk } from "./inventory-desk";
 import { ItemDrawer } from "./item-drawer";
-import { ViewEmpty, ViewLoading } from "./view-states";
+import { KohaUnavailableBanner, ViewEmpty, ViewLoading } from "./view-states";
 
 const TABS: { id: ItemCondition; label: string }[] = [
   { id: "all", label: "All" },
@@ -23,7 +23,8 @@ const TABS: { id: ItemCondition; label: string }[] = [
 ];
 
 export function ExceptionsView() {
-  const { sessionId, permissions, session } = useInventoryDesk();
+  const { sessionId, permissions, session, capabilities } = useInventoryDesk();
+  const kohaItemListBlocked = capabilities?.item_list === false;
   const [condition, setCondition] = useState<ItemCondition>("all");
   const [location, setLocation] = useState("");
   const [query, setQuery] = useState("");
@@ -122,6 +123,7 @@ export function ExceptionsView() {
 
   return (
     <div className="space-y-4">
+      {kohaItemListBlocked ? <KohaUnavailableBanner /> : null}
       <nav className="flex flex-wrap gap-2" aria-label="Exception conditions">
         {TABS.map((tab) => (
           <Button
