@@ -180,13 +180,18 @@ class KohaClient:
         return [row for row in body if isinstance(row, dict)]
 
     def search_items(self, params: dict) -> list[dict]:
-        body, _headers = self.get_json("/items", params)
+        body, _headers = self.get_json(
+            "/items",
+            params,
+            extra_headers={"x-koha-embed": "biblio"},
+        )
         if not isinstance(body, list):
             raise KohaResponseError
         return [row for row in body if isinstance(row, dict)]
 
-    def get_patron(self, patron_id: int) -> dict:
-        body, _headers = self.get_json(f"/patrons/{patron_id}")
+    def get_patron(self, patron_id: int, *, embed: str | None = None) -> dict:
+        extra_headers = {"x-koha-embed": embed} if embed else None
+        body, _headers = self.get_json(f"/patrons/{patron_id}", extra_headers=extra_headers)
         if not isinstance(body, dict):
             raise KohaResponseError
         return body

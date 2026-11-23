@@ -182,6 +182,57 @@ def test_patron_reads_send_embeds_and_a_plain_500_stays_a_response_error():
     assert embeds["/api/v1/patrons/4/holds"] == "biblio"
 
 
+def test_search_patrons_and_items_reject_non_list_bodies():
+    seen: list[tuple[str, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        seen.append((request.url.path, request.headers.get("x-koha-embed")))
+        if request.url.path.endswith("/patrons"):
+            return httpx.Response(200, json={"unexpected": "shape"})
+        if request.url.path.endswith("/items"):
+            return httpx.Response(200, json={"unexpected": "shape"})
+        raise AssertionError(request.url.path)
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    try:
+        client.search_patrons({"q": '{"cardnumber": "C1"}', "_per_page": 5})
+    except KohaResponseError:
+        pass
+    else:
+        raise AssertionError("expected KohaResponseError from search_patrons")
+    try:
+        client.search_items({"q": '{"external_id": "B-1"}', "_per_page": 5})
+    except KohaResponseError:
+        pass
+    else:
+        raise AssertionError("expected KohaResponseError from search_items")
+    embeds = {path: embed for path, embed in seen}
+    assert embeds["/api/v1/items"] == "biblio"
+    assert embeds["/api/v1/patrons"] is None
+
+
+def test_get_patron_passes_embed_only_when_requested():
+    seen: list[tuple[str, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/token"):
+            return httpx.Response(200, json={"access_token": "token-1", "expires_in": 3600})
+        if request.url.path.endswith("/patrons/4"):
+            seen.append((request.url.path, request.headers.get("x-koha-embed")))
+            return httpx.Response(200, json={"patron_id": 4, "surname": "Doe"})
+        raise AssertionError(request.url.path)
+
+    client = KohaClient(Settings(), transport=httpx.MockTransport(handler))
+    assert client.get_patron(4)["patron_id"] == 4
+    assert client.get_patron(4, embed="checkouts+count,overdues+count")["patron_id"] == 4
+    assert seen == [
+        ("/api/v1/patrons/4", None),
+        ("/api/v1/patrons/4", "checkouts+count,overdues+count"),
+    ]
+
+
 def test_timeout_is_typed():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth/token"):
