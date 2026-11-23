@@ -97,7 +97,15 @@ export function HistoryPanel({ permissions: _permissions }: HistoryPanelProps) {
     );
   }
 
-  if (!capabilities?.history) {
+  if (!capabilities) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 text-sm text-destructive" role="alert">
+        {error ?? "Circulation is unavailable. Try again."}
+      </div>
+    );
+  }
+
+  if (capabilities.history === false) {
     return (
       <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
         This Koha operation is not available.
