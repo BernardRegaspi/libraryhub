@@ -16,7 +16,13 @@ from app.integrations.koha.inventory import (
     capabilities_payload,
     get_inventory_capabilities,
 )
-from app.models.identity import AppUser, Permission, RolePermission, UserRoleAssignment
+from app.models.identity import (
+    AppUser,
+    LibraryDepartment,
+    Permission,
+    RolePermission,
+    UserRoleAssignment,
+)
 from app.models.inventory import InventoryAdjustment, InventorySession
 from app.models.identity import UserSession
 from app.schemas.auth import CurrentUserOut
@@ -293,9 +299,10 @@ def scope_options(
         tuple[CurrentUserOut, UserSession],
         Depends(require_inventory_permission("inventory.view")),
     ],
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> dict:
     payload, _session = user
-    _require_department(payload)
+    department_id = _require_department(payload)
     caps = get_inventory_capabilities()
     client = _koha_client()
     labels: dict[str, str] = {}
@@ -316,7 +323,16 @@ def scope_options(
                         locations.append({"id": str(code), "label": str(label)})
         except KohaError:
             locations = []
-    return {"item_types": item_types, "locations": locations}
+    department = db.get(LibraryDepartment, department_id)
+    home_library_id: str | None = None
+    if department is not None:
+        branch = (department.koha_branchcode or "").strip()
+        home_library_id = branch or None
+    return {
+        "item_types": item_types,
+        "locations": locations,
+        "home_library_id": home_library_id,
+    }
 
 
 @router.get("/operators")

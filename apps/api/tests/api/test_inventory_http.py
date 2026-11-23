@@ -9,7 +9,12 @@ from sqlalchemy import func, select
 
 from app.integrations.koha.client import KohaClient
 from app.models.identity import LibraryDepartment, Permission, Role, RolePermission
-from app.models.inventory import InventoryAdjustment, InventoryScan, InventorySession
+from app.models.inventory import (
+    InventoryAdjustment,
+    InventoryExpectedItem,
+    InventoryScan,
+    InventorySession,
+)
 from app.services.inventory_adjustments import draft_adjustment
 from app.services.inventory_sessions import create_session
 from tests.api.test_auth import add_user, csrf_headers
@@ -316,6 +321,148 @@ def test_get_session_other_department_not_found(auth_client, db, monkeypatch):
     response = auth_client.get(f"/api/v1/inventory/sessions/{session_row.id}")
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "not_found"
+
+
+def test_scope_options_home_library_id_from_department(auth_client, db, monkeypatch):
+    add_user(
+        db,
+        username="inv-scope",
+        email="inv-scope@usant.edu.ph",
+        display_name="Inv Scope",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    department.koha_branchcode = "COLLEGE"
+    db.flush()
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-scope")
+    response = auth_client.get("/api/v1/inventory/scope-options")
+    assert response.status_code == 200
+    assert response.json()["home_library_id"] == "COLLEGE"
+
+
+def test_scope_options_home_library_null_when_branch_blank(auth_client, db, monkeypatch):
+    dept = LibraryDepartment(
+        code=f"BLN-{uuid.uuid4().hex[:6]}",
+        name="Blank branch",
+        koha_branchcode=None,
+    )
+    db.add(dept)
+    db.flush()
+    add_user(
+        db,
+        username="inv-scope-blank",
+        email="inv-scope-blank@usant.edu.ph",
+        display_name="Inv Scope Blank",
+        password=PASSWORD,
+        role_name="Super Administrator",
+        department_code=None,
+    )
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-scope-blank")
+    switch = auth_client.patch(
+        "/api/v1/auth/session",
+        json={"active_department_id": str(dept.id)},
+        headers=csrf_headers(auth_client),
+    )
+    assert switch.status_code == 200
+    response = auth_client.get("/api/v1/inventory/scope-options")
+    assert response.status_code == 200
+    assert response.json()["home_library_id"] is None
+
+
+def test_session_items_include_expected_item_id(auth_client, db, monkeypatch):
+    user = add_user(
+        db,
+        username="inv-items",
+        email="inv-items@usant.edu.ph",
+        display_name="Inv Items",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    session_row = InventorySession(
+        department_id=department.id,
+        name="Items session",
+        description=None,
+        status="in_progress",
+        home_library_id="COLLEGE",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        created_by=user.id,
+        expected_count=1,
+    )
+    db.add(session_row)
+    db.flush()
+    expected = InventoryExpectedItem(
+        session_id=session_row.id,
+        koha_item_id=42,
+        barcode="ISBN-42",
+        koha_status="available",
+        title="Test title",
+    )
+    db.add(expected)
+    db.commit()
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-items")
+    response = auth_client.get(f"/api/v1/inventory/sessions/{session_row.id}/items")
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) >= 1
+    row = next(item for item in items if item.get("koha_item_id") == 42)
+    assert row["expected_item_id"] == str(expected.id)
+
+
+def test_export_csv_omits_internal_item_ids(auth_client, db, monkeypatch):
+    user = add_user(
+        db,
+        username="inv-export",
+        email="inv-export@usant.edu.ph",
+        display_name="Inv Export",
+        password=PASSWORD,
+        role_name="Librarian",
+        department_code="COLLEGE",
+    )
+    department = db.query(LibraryDepartment).filter_by(code="COLLEGE").one()
+    session_row = InventorySession(
+        department_id=department.id,
+        name="Export session",
+        description=None,
+        status="in_progress",
+        home_library_id="COLLEGE",
+        item_type_id=None,
+        start_on=date(2026, 11, 1),
+        target_on=None,
+        created_by=user.id,
+        expected_count=1,
+    )
+    db.add(session_row)
+    db.flush()
+    db.add(
+        InventoryExpectedItem(
+            session_id=session_row.id,
+            koha_item_id=7,
+            barcode="ISBN-7",
+            koha_status="available",
+            title="Export row",
+        ),
+    )
+    db.commit()
+    _patch_koha(monkeypatch, _handler)
+    _login(auth_client, "inv-export")
+    response = auth_client.get(
+        f"/api/v1/inventory/sessions/{session_row.id}/exports",
+        params={"kind": "unverified", "format": "csv"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    header = response.content.decode("utf-8").splitlines()[0]
+    columns = {name.strip() for name in header.split(",")}
+    assert "expected_item_id" not in columns
 
 
 def test_write_without_csrf_rejected(auth_client, db, monkeypatch):

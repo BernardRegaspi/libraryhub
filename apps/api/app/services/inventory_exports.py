@@ -315,6 +315,9 @@ def _expected_item_row(
         if scan.live_status:
             koha_status = scan.live_status
     return {
+        "expected_item_id": str(item.id),
+        "scan_id": str(scan.id) if scan is not None else None,
+        "shelf_search_id": str(search.id) if search is not None else None,
         "session_name": session.name,
         "department": context.department_name,
         "home_library": session.home_library_id,
@@ -346,6 +349,9 @@ def _scan_item_row(
         operator_name = context.operators.get(scan.operator_id, "")
     live_or_station = scan.station_location or scan.live_location or ""
     return {
+        "expected_item_id": str(scan.expected_item_id) if scan.expected_item_id else None,
+        "scan_id": str(scan.id),
+        "shelf_search_id": None,
         "session_name": session.name,
         "department": context.department_name,
         "home_library": session.home_library_id,
