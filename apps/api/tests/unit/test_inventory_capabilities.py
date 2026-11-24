@@ -1,21 +1,22 @@
 from app.integrations.koha.inventory import (
     InventoryCapabilities,
+    ItemListCapability,
     capabilities_payload,
     get_inventory_capabilities,
 )
 from app.services.inventory_errors import unsupported
 
 
-def test_inventory_capabilities_start_unset():
+def test_inventory_capabilities_list_items_by_home_library():
     caps = get_inventory_capabilities()
     assert isinstance(caps, InventoryCapabilities)
-    assert caps.item_list is None
+    assert caps.item_list == ItemListCapability("GET", "/items", "home_library_id")
     assert caps.locations is None
     assert caps.item_update is None
     assert caps.update_fields == ()
     payload = capabilities_payload(caps)
     assert payload == {
-        "item_list": False,
+        "item_list": True,
         "locations": False,
         "item_update": False,
         "update_fields": [],

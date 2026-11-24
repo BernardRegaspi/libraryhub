@@ -12,10 +12,17 @@ export type InventoryCapabilities = {
   update_fields: string[];
 };
 
+export type ScopeDepartment = {
+  id: string;
+  name: string;
+  home_library_id: string | null;
+};
+
 export type ScopeOptions = {
   item_types: Array<{ id: string; label: string }>;
   locations: Array<{ id: string; label: string }>;
   home_library_id: string | null;
+  departments: ScopeDepartment[];
 };
 
 export type InventoryOperator = {
@@ -67,6 +74,7 @@ export type SessionSummary = {
   damaged: number;
   withdrawn: number;
   unexpected: number;
+  not_found: number;
   completion: number;
 };
 
@@ -109,6 +117,8 @@ export type ScanResponse = {
   counts: boolean;
   koha_item_id: number | null;
   title: string | null;
+  author?: string | null;
+  call_number?: string | null;
   live_status: string | null;
   station_location: string | null;
   live_location: string | null;

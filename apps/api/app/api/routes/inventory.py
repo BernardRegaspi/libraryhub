@@ -95,9 +95,11 @@ def _validation_error() -> None:
     )
 
 
-def _require_department(payload: CurrentUserOut) -> uuid.UUID:
+def _require_department(payload: CurrentUserOut) -> uuid.UUID | None:
     if payload.active_department_id is None:
-        _raise_inventory(department_required())
+        if not payload.can_select_all_departments:
+            _raise_inventory(department_required())
+        return None
     return payload.active_department_id
 
 
@@ -141,10 +143,12 @@ def _load_session(
     db: Session,
     session_id: uuid.UUID,
     *,
-    department_id: uuid.UUID,
+    department_id: uuid.UUID | None,
 ) -> InventorySession:
     session = db.get(InventorySession, session_id)
-    if session is None or session.department_id != department_id:
+    if session is None or (
+        department_id is not None and session.department_id != department_id
+    ):
         raise _NOT_FOUND
     return session
 
@@ -153,7 +157,7 @@ def _load_adjustment(
     db: Session,
     adjustment_id: uuid.UUID,
     *,
-    department_id: uuid.UUID,
+    department_id: uuid.UUID | None,
 ) -> tuple[InventoryAdjustment, InventorySession]:
     row = db.get(InventoryAdjustment, adjustment_id)
     if row is None:
@@ -257,10 +261,27 @@ def _audit_payload(row) -> dict[str, Any]:
     }
 
 
-def _list_manage_operators(db: Session, department_id: uuid.UUID) -> list[dict[str, str]]:
+def _department_scope(department: LibraryDepartment) -> dict[str, str | None]:
+    branch = (department.koha_branchcode or "").strip()
+    return {
+        "id": str(department.id),
+        "name": department.name,
+        "home_library_id": branch or None,
+    }
+
+
+def _list_manage_operators(db: Session, department_id: uuid.UUID | None) -> list[dict[str, str]]:
     perm_id = db.scalar(select(Permission.id).where(Permission.code == "inventory.manage"))
     if perm_id is None:
         return []
+    department_filter = (
+        or_(
+            UserRoleAssignment.department_id == department_id,
+            UserRoleAssignment.department_id.is_(None),
+        )
+        if department_id is not None
+        else None
+    )
     stmt = (
         select(AppUser)
         .join(UserRoleAssignment, UserRoleAssignment.user_id == AppUser.id)
@@ -268,10 +289,7 @@ def _list_manage_operators(db: Session, department_id: uuid.UUID) -> list[dict[s
         .where(
             RolePermission.permission_id == perm_id,
             AppUser.status == "active",
-            or_(
-                UserRoleAssignment.department_id == department_id,
-                UserRoleAssignment.department_id.is_(None),
-            ),
+            *([department_filter] if department_filter is not None else []),
         )
         .distinct()
         .order_by(AppUser.display_name)
@@ -323,15 +341,25 @@ def scope_options(
                         locations.append({"id": str(code), "label": str(label)})
         except KohaError:
             locations = []
+    if department_id is None:
+        departments = db.scalars(
+            select(LibraryDepartment)
+            .where(LibraryDepartment.is_active.is_(True))
+            .order_by(LibraryDepartment.name),
+        ).all()
+        return {
+            "item_types": item_types,
+            "locations": locations,
+            "home_library_id": None,
+            "departments": [_department_scope(row) for row in departments],
+        }
     department = db.get(LibraryDepartment, department_id)
-    home_library_id: str | None = None
-    if department is not None:
-        branch = (department.koha_branchcode or "").strip()
-        home_library_id = branch or None
+    option = _department_scope(department) if department is not None else None
     return {
         "item_types": item_types,
         "locations": locations,
-        "home_library_id": home_library_id,
+        "home_library_id": None if option is None else option["home_library_id"],
+        "departments": [] if option is None else [option],
     }
 
 
@@ -398,7 +426,9 @@ def sessions_create(
 ) -> dict:
     payload, session_row = user
     _assert_write_csrf(request, session_row)
-    department_id = _require_department(payload)
+    department_id = _require_department(payload) or body.department_id
+    if department_id is None:
+        _raise_inventory(department_required())
     try:
         row = create_session(
             db,

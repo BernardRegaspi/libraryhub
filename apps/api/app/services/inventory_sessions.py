@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any
@@ -8,7 +9,12 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.integrations.koha.availability import item_status
-from app.integrations.koha.exceptions import KohaConnectionError, KohaTimeoutError
+from app.integrations.koha.item_normalize import koha_item_barcode, normalize_koha_item
+from app.integrations.koha.exceptions import (
+    KohaConnectionError,
+    KohaRequestError,
+    KohaTimeoutError,
+)
 from app.integrations.koha.inventory import InventoryCapabilities
 from app.models.identity import LibraryDepartment
 from app.models.inventory import (
@@ -31,7 +37,9 @@ from app.services.inventory_errors import (
 )
 from app.services.inventory_rules import expected_condition, keep_for_snapshot
 
-_PER_PAGE = 50
+_PAGE_SIZE = 200
+_PAGE_SIZE_FALLBACK = 50
+_MAX_PAGES = 80
 _EXCEPTION_CONDITIONS = frozenset({"not_found", "misplaced", "unexpected", "damaged", "withdrawn"})
 _OPEN_ADJUSTMENT_STATUSES = frozenset({"draft", "approved", "failed"})
 
@@ -152,17 +160,54 @@ def start_session(
     item_type = str(session.item_type_id) if session.item_type_id is not None else None
     kept: list[dict] = []
     page = 1
+    page_size = _PAGE_SIZE
+    embed_biblio = True
+    total: int | None = None
+    seen_item_ids: set[int] = set()
     try:
-        while True:
+        while page <= _MAX_PAGES:
             params = {
-                caps.item_list.library_param: session.home_library_id,
+                "q": json.dumps({caps.item_list.library_param: session.home_library_id}),
                 "_page": page,
-                "_per_page": _PER_PAGE,
+                "_per_page": page_size,
             }
-            batch = client.get_json(caps.item_list.path, params)
-            if not isinstance(batch, list):
-                batch = []
-            for item in batch:
+            try:
+                embed_headers = {"x-koha-embed": "biblio"} if embed_biblio else None
+                body, headers = client.get_json(
+                    caps.item_list.path,
+                    params,
+                    extra_headers=embed_headers,
+                )
+            except KohaRequestError:
+                if embed_biblio:
+                    embed_biblio = False
+                    continue
+                if page_size != _PAGE_SIZE_FALLBACK:
+                    page_size = _PAGE_SIZE_FALLBACK
+                    continue
+                db.rollback()
+                raise inventory_unavailable() from None
+            if total is None and headers is not None:
+                raw_total = headers.get("X-Total-Count")
+                if raw_total is not None and str(raw_total).isdigit():
+                    total = int(raw_total)
+            batch = body if isinstance(body, list) else []
+            new_on_page = 0
+            for raw in batch:
+                if not isinstance(raw, dict):
+                    continue
+                item = normalize_koha_item(raw)
+                item_id = item.get("item_id") or item.get("itemnumber")
+                if item_id is not None:
+                    try:
+                        parsed_id = int(item_id)
+                    except (TypeError, ValueError):
+                        parsed_id = None
+                    if parsed_id is not None:
+                        if parsed_id in seen_item_ids:
+                            continue
+                        seen_item_ids.add(parsed_id)
+                        new_on_page += 1
                 if keep_for_snapshot(
                     item,
                     home_library_id=session.home_library_id,
@@ -170,10 +215,12 @@ def start_session(
                     item_type_id=item_type,
                 ):
                     kept.append(item)
-            if len(batch) < _PER_PAGE:
+            if not batch or new_on_page == 0 or len(batch) < page_size:
+                break
+            if total is not None and page * page_size >= total:
                 break
             page += 1
-    except (KohaConnectionError, KohaTimeoutError):
+    except (KohaConnectionError, KohaTimeoutError, KohaRequestError):
         db.rollback()
         raise inventory_unavailable() from None
 
@@ -282,13 +329,15 @@ def reopen_session(
 def list_sessions(
     db: Session,
     *,
-    department_id: uuid.UUID,
+    department_id: uuid.UUID | None,
     status: str,
     q: str,
     page: int,
     per_page: int,
 ) -> dict[str, Any]:
-    stmt = select(InventorySession).where(InventorySession.department_id == department_id)
+    stmt = select(InventorySession)
+    if department_id is not None:
+        stmt = stmt.where(InventorySession.department_id == department_id)
     if q:
         stmt = stmt.where(InventorySession.name.ilike(f"%{q}%"))
     if status == "active":
@@ -390,6 +439,7 @@ def session_summary(db: Session, session_id: uuid.UUID) -> dict[str, Any]:
 
     scanned = 0
     unverified = 0
+    not_found = 0
     open_exception_items: set[uuid.UUID] = set()
     for item in expected_items:
         outcome = scan_by_expected.get(item.id) or scan_by_koha.get(item.koha_item_id)
@@ -401,6 +451,9 @@ def session_summary(db: Session, session_id: uuid.UUID) -> dict[str, Any]:
         )
         if condition == "unverified":
             unverified += 1
+        elif condition == "not_found":
+            not_found += 1
+            open_exception_items.add(item.id)
         elif condition in _EXCEPTION_CONDITIONS:
             open_exception_items.add(item.id)
 
@@ -432,6 +485,7 @@ def session_summary(db: Session, session_id: uuid.UUID) -> dict[str, Any]:
         "damaged": bar["damaged"],
         "withdrawn": bar["withdrawn"],
         "unexpected": bar["unexpected"],
+        "not_found": not_found,
         "completion": completion,
     }
 
@@ -485,31 +539,28 @@ def _koha_item_id(item: dict) -> int:
 
 
 def _koha_barcode(item: dict) -> str:
-    for key in ("barcode", "external_id"):
-        value = item.get(key)
-        if value not in (None, ""):
-            return str(value)
-    return ""
+    return koha_item_barcode(normalize_koha_item(item))
 
 
 def _expected_row(session: InventorySession, item: dict) -> InventoryExpectedItem:
-    status_key = item_status(item)[0]
+    row = normalize_koha_item(item)
+    status_key = item_status(row)[0]
     if status_key not in ("available", "damaged", "not_for_loan"):
         status_key = "available"
-    item_type_id = _optional_int(item.get("item_type_id"))
+    item_type_id = _optional_int(row.get("item_type_id"))
     return InventoryExpectedItem(
         session_id=session.id,
-        koha_item_id=_koha_item_id(item),
-        barcode=_koha_barcode(item),
-        biblio_id=_optional_int(item.get("biblio_id")),
-        title=_optional_str(item.get("title")),
-        author=_optional_str(item.get("author")),
-        call_number=_optional_str(item.get("call_number")),
+        koha_item_id=_koha_item_id(row),
+        barcode=_koha_barcode(row),
+        biblio_id=_optional_int(row.get("biblio_id")),
+        title=_optional_str(row.get("title")),
+        author=_optional_str(row.get("author")),
+        call_number=_optional_str(row.get("call_number")),
         item_type_id=item_type_id,
-        item_type_label=_optional_str(item.get("item_type_label")),
-        home_library_id=_optional_str(item.get("home_library_id")),
-        holding_library_id=_optional_str(item.get("holding_library_id")),
-        location=_optional_str(item.get("location")),
+        item_type_label=_optional_str(row.get("item_type_label")),
+        home_library_id=_optional_str(row.get("home_library_id")),
+        holding_library_id=_optional_str(row.get("holding_library_id")),
+        location=_optional_str(row.get("location")),
         koha_status=status_key,
     )
 

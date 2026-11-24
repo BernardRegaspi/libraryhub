@@ -276,6 +276,7 @@ def test_submit_scan_flow_and_damage(db, staff_user, in_progress_session):
     )
     assert misplaced["outcome"] == "misplaced"
     assert misplaced["counts"] is True
+    assert misplaced["id"]
 
     unexpected = submit_scan(
         db,

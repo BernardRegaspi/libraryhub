@@ -49,21 +49,20 @@ import { OverviewView } from "./overview-view";
 import { ScanView } from "./scan-view";
 import { SessionDialog } from "./session-dialog";
 
-const BANNER =
-  "An unscanned item stays unverified. Koha is unchanged until an approved proposal is submitted.";
+const NO_SESSION = "none" as const;
 
 const VIEWS: { id: InventoryView; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "scan", label: "Scan" },
+  { id: "scan", label: "Scan station" },
   { id: "exceptions", label: "Exceptions" },
   { id: "adjustments", label: "Adjustments" },
-  { id: "audit", label: "Audit" },
+  { id: "audit", label: "Audit trail" },
 ];
 
 export type InventoryDeskContextValue = {
   permissions: string[];
   userId: string;
-  departmentId: string;
+  departmentId: string | null;
   sessionId: string | null;
   session: InventorySession | null;
   capabilities: InventoryCapabilities | null;
@@ -73,6 +72,7 @@ export type InventoryDeskContextValue = {
   selectSession: (id: string) => void;
   startSession: (id: string) => Promise<void>;
   setView: (view: InventoryView) => void;
+  openSessionDialog: () => void;
 };
 
 const InventoryDeskContext = createContext<InventoryDeskContextValue | null>(null);
@@ -87,7 +87,7 @@ export function useInventoryDesk(): InventoryDeskContextValue {
 
 type InventoryDeskProps = {
   permissions: string[];
-  departmentId: string;
+  departmentId: string | null;
   userId: string;
 };
 
@@ -123,7 +123,7 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
     if (!sessionId || !data.items.some((row) => row.id === sessionId)) {
       setSessionId(data.items[0].id);
     }
-  }, [listSearch, sessionId]);
+  }, [departmentId, listSearch, sessionId]);
 
   const refreshSession = useCallback(async () => {
     if (!sessionId) {
@@ -168,7 +168,7 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
 
   const startSession = useCallback(
     async (id: string) => {
-      if (!capabilities?.item_list) {
+      if (!departmentId || !capabilities?.item_list) {
         return;
       }
       await fetchApi(`/inventory/sessions/${id}/start`, { method: "POST" });
@@ -177,7 +177,7 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
       await fetchApi<InventorySession>(`/inventory/sessions/${id}`).then(setSession);
       setView("scan");
     },
-    [capabilities?.item_list, refreshSessions, setView],
+    [capabilities?.item_list, departmentId, refreshSessions, setView],
   );
 
   const runExport = useCallback(
@@ -209,6 +209,7 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
       selectSession,
       startSession,
       setView,
+      openSessionDialog: () => setDialogOpen(true),
     }),
     [
       capabilities,
@@ -228,45 +229,17 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
 
   return (
     <InventoryDeskContext.Provider value={contextValue}>
-      <div className="space-y-4 px-4 pb-8 sm:px-6 lg:px-8">
-        <p className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {BANNER}
-        </p>
-
-        <NavButtons view={view} setView={setView} />
-
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <Select
-              value={sessionId ?? undefined}
-              onValueChange={(value) => setSessionId(value)}
-              disabled={sessions.length === 0}
-            >
-              <SelectTrigger className="w-full sm:w-[240px]">
-                <SelectValue placeholder="Choose a session" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessions.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              className="w-full sm:max-w-xs"
-              placeholder="Search sessions"
-              value={listSearch}
-              onChange={(event) => setListSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  void refreshSessions();
-                }
-              }}
-            />
-            <Button type="button" variant="outline" onClick={() => void refreshSessions()}>
-              Refresh
-            </Button>
+      <div className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-medium uppercase tracking-wider text-primary">Library</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-foreground">
+              Inventory &amp; stocktaking
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+              Plan stocktake sessions, scan the shelf, and review every exception. Session and
+              scan records stay in Library Hub. Item status stays in Koha.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <DropdownMenu>
@@ -295,29 +268,88 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button type="button" variant="outline" size="lg" onClick={() => void refreshSessions()}>
+              Refresh
+            </Button>
             {canManage ? (
-              <Button type="button" onClick={() => setDialogOpen(true)}>
-                New session
+              <Button type="button" size="lg" onClick={() => setDialogOpen(true)}>
+                New stocktake session
               </Button>
             ) : null}
           </div>
         </div>
 
-        {!sessionId ? (
-          <p className="text-sm text-muted-foreground">
-            No inventory session yet. {canManage ? "Create one to begin." : ""}
-          </p>
-        ) : null}
-
-        {sessionId ? (
-          <div className="min-w-0">
-            {view === "overview" ? <OverviewView /> : null}
-            {view === "scan" ? <ScanView /> : null}
-            {view === "exceptions" ? <ExceptionsView /> : null}
-            {view === "adjustments" ? <AdjustmentsView /> : null}
-            {view === "audit" ? <AuditView /> : null}
+        <div className="flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4">
+          <div className="min-w-0 text-sm leading-relaxed">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              Safeguard rule active — no automatic status changes
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              A missing scan never marks an item lost, withdrawn, or deleted. Unscanned records
+              stay unverified until staff finish a shelf search and file a reviewed adjustment.
+              Koha changes only after an approved proposal is submitted.
+            </p>
           </div>
-        ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="ml-auto hidden shrink-0 sm:inline-flex"
+            onClick={() => setView("audit")}
+          >
+            View policy log
+          </Button>
+        </div>
+
+        <NavButtons view={view} setView={setView} />
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <Select
+            value={sessionId ?? NO_SESSION}
+            onValueChange={(value) =>
+              setSessionId(value === NO_SESSION || value == null ? null : value)
+            }
+            disabled={sessions.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-[240px]">
+              <SelectValue placeholder="Choose a session" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_SESSION}>Choose a session</SelectItem>
+              {sessions.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="w-full sm:max-w-xs"
+            placeholder="Search sessions"
+            value={listSearch}
+            onChange={(event) => setListSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                void refreshSessions();
+              }
+            }}
+          />
+        </div>
+
+        <div className="min-w-0">
+          <div hidden={view !== "overview"}>
+            <OverviewView active={view === "overview"} />
+          </div>
+          {sessionId && view === "scan" ? <ScanView /> : null}
+          {sessionId && view === "exceptions" ? <ExceptionsView /> : null}
+          {sessionId && view === "adjustments" ? <AdjustmentsView /> : null}
+          {sessionId && view === "audit" ? <AuditView /> : null}
+          {!sessionId && view !== "overview" ? (
+            <p className="text-sm text-muted-foreground">
+              Select a session, or plan one from the overview.
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {canManage ? (
@@ -351,6 +383,7 @@ function NavButtons({
         <Button
           key={entry.id}
           type="button"
+          size="lg"
           variant={view === entry.id ? "default" : "outline"}
           onClick={() => setView(entry.id)}
         >

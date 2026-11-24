@@ -7,11 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.integrations.koha.exceptions import KohaConnectionError
-from app.integrations.koha.inventory import (
-    InventoryCapabilities,
-    ItemListCapability,
-    get_inventory_capabilities,
-)
+from app.integrations.koha.inventory import InventoryCapabilities, ItemListCapability
 from app.models.identity import AppUser, AuditLog, LibraryDepartment
 from app.models.inventory import (
     InventoryExpectedItem,
@@ -19,7 +15,12 @@ from app.models.inventory import (
     InventorySession,
 )
 from app.services.inventory_errors import InventoryError
-from app.services.inventory_sessions import create_session, session_summary, start_session
+from app.services.inventory_sessions import (
+    _PAGE_SIZE,
+    create_session,
+    session_summary,
+    start_session,
+)
 
 
 def _item(**overrides):
@@ -45,15 +46,15 @@ class FakeKohaClient:
         self.pages = pages
         self.calls: list[tuple[str, dict]] = []
 
-    def get_json(self, path: str, params: dict):
+    def get_json(self, path: str, params: dict, **_kwargs):
         self.calls.append((path, params))
         page_num = int(params.get("_page", 1))
         if page_num > len(self.pages):
-            return []
+            return [], {}
         page = self.pages[page_num - 1]
         if isinstance(page, Exception):
             raise page
-        return page
+        return page, {}
 
 
 @pytest.fixture
@@ -183,7 +184,7 @@ def test_start_without_item_list_raises_and_stays_draft(
     db.commit()
     client = FakeKohaClient([[_item()]])
     with pytest.raises(InventoryError) as exc_info:
-        start_session(db, client, get_inventory_capabilities(), session.id)
+        start_session(db, client, InventoryCapabilities(), session.id)
     assert exc_info.value.code == "inventory_unsupported"
     db.expire_all()
     fresh = db.get(InventorySession, session.id)
@@ -252,6 +253,8 @@ def test_start_keeps_on_shelf_item_and_audits(db, staff_user, mapped_department)
         item_list=ItemListCapability("GET", "/items", "home_library_id"),
     )
     started = start_session(db, client, caps, session.id)
+    assert client.calls[0][0] == "/items"
+    assert client.calls[0][1]["q"] == '{"home_library_id": "COLLEGE"}'
     assert started.status == "in_progress"
     assert started.expected_count == 1
     expected_rows = db.scalars(
@@ -281,7 +284,7 @@ def test_start_second_page_connection_error_rolls_back(db, staff_user, mapped_de
         operator_ids=[],
     )
     db.commit()
-    page_one = [_item(item_id=i, barcode=f"B{i}") for i in range(1, 51)]
+    page_one = [_item(item_id=i, barcode=f"B{i}") for i in range(1, _PAGE_SIZE + 1)]
     client = FakeKohaClient([page_one, KohaConnectionError()])
     caps = InventoryCapabilities(
         item_list=ItemListCapability("GET", "/items", "home_library_id"),

@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.integrations.koha.client import KohaClient
+from app.integrations.koha.inventory import InventoryCapabilities
 from app.models.identity import LibraryDepartment, Permission, Role, RolePermission
 from app.models.inventory import (
     InventoryAdjustment,
@@ -117,6 +118,9 @@ def test_post_sessions_requires_active_department(auth_client, db, monkeypatch):
     )
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "department_required"
+    listed = auth_client.get("/api/v1/inventory/sessions?status=all&per_page=20&page=1")
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
 
 
 def test_post_sessions_branch_unmapped(auth_client, db, monkeypatch):
@@ -187,6 +191,10 @@ def test_start_without_item_list_is_unsupported(auth_client, db, monkeypatch):
         operator_ids=[],
     )
     _patch_koha(monkeypatch, _handler)
+    monkeypatch.setattr(
+        "app.api.routes.inventory.get_inventory_capabilities",
+        lambda: InventoryCapabilities(),
+    )
     _login(auth_client, "inv-start")
     response = auth_client.post(
         f"/api/v1/inventory/sessions/{session.id}/start",

@@ -25,7 +25,11 @@ class InventoryCapabilities:
 
 
 def get_inventory_capabilities() -> InventoryCapabilities:
-    return InventoryCapabilities()
+    # This Koha host rejects a bare home_library_id query and accepts
+    # q={"home_library_id": "<library>"}. start_session sends that q.
+    return InventoryCapabilities(
+        item_list=ItemListCapability("GET", "/items", "home_library_id"),
+    )
 
 
 def capabilities_payload(caps: InventoryCapabilities) -> dict:

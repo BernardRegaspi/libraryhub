@@ -215,12 +215,14 @@ class _SessionContext:
         department_name: str,
         scan_by_expected: dict[uuid.UUID, InventoryScan],
         scan_by_koha: dict[int, InventoryScan],
+        expected_by_koha: dict[int, InventoryExpectedItem],
         active_searches: dict[uuid.UUID, InventoryShelfSearch],
         operators: dict[uuid.UUID, str],
     ) -> None:
         self.department_name = department_name
         self.scan_by_expected = scan_by_expected
         self.scan_by_koha = scan_by_koha
+        self.expected_by_koha = expected_by_koha
         self.active_searches = active_searches
         self.operators = operators
 
@@ -228,6 +230,10 @@ class _SessionContext:
     def load(cls, db: Session, session: InventorySession) -> _SessionContext:
         dept = db.get(LibraryDepartment, session.department_id)
         department_name = dept.name if dept is not None else ""
+        expected_items = db.scalars(
+            select(InventoryExpectedItem).where(InventoryExpectedItem.session_id == session.id),
+        ).all()
+        expected_by_koha = {row.koha_item_id: row for row in expected_items}
         scans = db.scalars(
             select(InventoryScan).where(
                 InventoryScan.session_id == session.id,
@@ -259,6 +265,7 @@ class _SessionContext:
             department_name=department_name,
             scan_by_expected=scan_by_expected,
             scan_by_koha=scan_by_koha,
+            expected_by_koha=expected_by_koha,
             active_searches=active_searches,
             operators=operators,
         )
@@ -352,6 +359,9 @@ def _scan_item_row(
     if scan.operator_id is not None:
         operator_name = context.operators.get(scan.operator_id, "")
     live_or_station = scan.station_location or scan.live_location or ""
+    expected = (
+        context.expected_by_koha.get(scan.koha_item_id) if scan.koha_item_id is not None else None
+    )
     return {
         "expected_item_id": str(scan.expected_item_id) if scan.expected_item_id else None,
         "scan_id": str(scan.id),
@@ -361,11 +371,13 @@ def _scan_item_row(
         "home_library": session.home_library_id,
         "barcode": scan.barcode_submitted if include_barcode else "",
         "koha_item_id": scan.koha_item_id or "",
-        "title": scan.title or "",
-        "author": scan.author or "",
-        "call_number": scan.call_number or "",
-        "item_type": scan.item_type_label or "",
-        "snapshot_location": "",
+        "title": scan.title or (expected.title if expected is not None else "") or "",
+        "author": scan.author or (expected.author if expected is not None else "") or "",
+        "call_number": scan.call_number or (expected.call_number if expected is not None else "") or "",
+        "item_type": scan.item_type_label
+        or (expected.item_type_label if expected is not None else "")
+        or "",
+        "snapshot_location": expected.location if expected is not None else "",
         "live_or_station_location": live_or_station,
         "condition": scan.outcome,
         "koha_status": scan.live_status or "",

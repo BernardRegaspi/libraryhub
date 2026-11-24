@@ -5,11 +5,12 @@ import re
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.integrations.koha.availability import item_status
+from app.integrations.koha.item_normalize import koha_item_barcode, normalize_koha_item
 from app.integrations.koha.exceptions import KohaConnectionError, KohaTimeoutError
 from app.models.inventory import (
     InventoryExpectedItem,
@@ -63,14 +64,22 @@ def submit_scan(
         )
         if not isinstance(matches, list):
             matches = []
+        if not matches:
+            matches = client.search_items(
+                {"q": json.dumps({"barcode": trimmed}), "_per_page": 5},
+            )
+            if not isinstance(matches, list):
+                matches = []
     except (KohaTimeoutError, KohaConnectionError):
         koha_failed = True
         matches = []
 
+    matches = [normalize_koha_item(row) for row in matches if isinstance(row, dict)]
+
     expected_by_barcode = db.scalar(
         select(InventoryExpectedItem).where(
             InventoryExpectedItem.session_id == session_id,
-            InventoryExpectedItem.barcode == trimmed,
+            func.lower(InventoryExpectedItem.barcode) == trimmed.casefold(),
         ),
     )
     koha_item_id = _koha_item_id(matches[0]) if len(matches) == 1 else None
@@ -83,6 +92,15 @@ def submit_scan(
             ),
         )
     expected = expected_by_item or expected_by_barcode
+    if expected is None and len(matches) == 1:
+        live_barcode = koha_item_barcode(matches[0])
+        if live_barcode:
+            expected = db.scalar(
+                select(InventoryExpectedItem).where(
+                    InventoryExpectedItem.session_id == session_id,
+                    func.lower(InventoryExpectedItem.barcode) == live_barcode.casefold(),
+                ),
+            )
     on_expected_list = expected is not None
 
     existing_counts = _has_counting_scan(db, session_id, koha_item_id)
@@ -291,7 +309,7 @@ def _build_scan_row(
     decision,
     original_scan_id: uuid.UUID | None,
 ) -> InventoryScan:
-    item = matches[0] if len(matches) == 1 else None
+    item = normalize_koha_item(matches[0]) if len(matches) == 1 else None
     koha_item_id = _koha_item_id(item) if item is not None else None
     live_status = None
     if item is not None:
@@ -323,12 +341,15 @@ def _build_scan_row(
 
 def _scan_payload(scan: InventoryScan) -> dict[str, Any]:
     return {
+        "id": str(scan.id),
         "outcome": scan.outcome,
         "match_basis": scan.match_basis,
         "observed_damaged": scan.observed_damaged,
         "counts": scan.counts,
         "koha_item_id": scan.koha_item_id,
         "title": scan.title,
+        "author": scan.author,
+        "call_number": scan.call_number,
         "live_status": scan.live_status,
         "station_location": scan.station_location,
         "live_location": scan.live_location,

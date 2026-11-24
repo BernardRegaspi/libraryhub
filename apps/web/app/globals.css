@@ -185,6 +185,27 @@
   }
 }
 
+@keyframes inventory-scan-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.inventory-scan-beam {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    color-mix(in oklab, var(--color-indigo-500) 12%, transparent) 45%,
+    color-mix(in oklab, var(--color-indigo-500) 22%, transparent) 50%,
+    color-mix(in oklab, var(--color-indigo-500) 12%, transparent) 55%,
+    transparent 100%
+  );
+  animation: inventory-scan-sweep 2.4s ease-in-out infinite;
+}
+
 @utility site-container {
   margin-inline: auto;
   max-width: 88rem;

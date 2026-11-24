@@ -55,7 +55,7 @@ export function SessionDialog({
   onCreated,
   onStarted,
 }: SessionDialogProps) {
-  const { capabilities, scopeOptions, refreshSessions } = useInventoryDesk();
+  const { capabilities, scopeOptions, refreshSessions, departmentId } = useInventoryDesk();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [startOn, setStartOn] = useState(() => new Date().toISOString().slice(0, 10));
@@ -63,12 +63,19 @@ export function SessionDialog({
   const [itemTypeId, setItemTypeId] = useState("");
   const [locations, setLocations] = useState<string[]>([]);
   const [operatorIds, setOperatorIds] = useState<string[]>([]);
+  const [chosenDepartmentId, setChosenDepartmentId] = useState("");
   const [operators, setOperators] = useState<InventoryOperator[]>([]);
   const [submitting, setSubmitting] = useState<"draft" | "start" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const homeLibrary = scopeOptions?.home_library_id ?? null;
-  const actionsBlocked = !capabilities?.item_list || !homeLibrary;
+  const departments = scopeOptions?.departments ?? [];
+  const picked = departments.find((row) => row.id === chosenDepartmentId);
+  const homeLibrary = departmentId
+    ? (scopeOptions?.home_library_id ?? null)
+    : (picked?.home_library_id ?? null);
+  const departmentChosen = Boolean(departmentId || chosenDepartmentId);
+  const draftBlocked = !departmentChosen || !homeLibrary;
+  const startBlocked = draftBlocked || capabilities === null || !capabilities.item_list;
 
   useEffect(() => {
     if (!open) {
@@ -88,8 +95,19 @@ export function SessionDialog({
       locations,
       item_type_id: itemTypeId ? Number(itemTypeId) : null,
       operator_ids: operatorIds,
+      ...(departmentId ? {} : { department_id: chosenDepartmentId }),
     };
-  }, [description, itemTypeId, locations, name, operatorIds, startOn, targetOn]);
+  }, [
+    chosenDepartmentId,
+    departmentId,
+    description,
+    itemTypeId,
+    locations,
+    name,
+    operatorIds,
+    startOn,
+    targetOn,
+  ]);
 
   const validate = useCallback(() => {
     if (!name.trim()) {
@@ -105,7 +123,7 @@ export function SessionDialog({
   }, [name, startOn]);
 
   const saveDraft = useCallback(async () => {
-    if (!validate() || actionsBlocked) {
+    if (!validate() || draftBlocked) {
       return;
     }
     setSubmitting("draft");
@@ -123,10 +141,10 @@ export function SessionDialog({
     } finally {
       setSubmitting(null);
     }
-  }, [actionsBlocked, buildBody, onCreated, onOpenChange, refreshSessions, validate]);
+  }, [buildBody, draftBlocked, onCreated, onOpenChange, refreshSessions, validate]);
 
   const startSession = useCallback(async () => {
-    if (!validate() || actionsBlocked) {
+    if (!validate() || startBlocked) {
       return;
     }
     setSubmitting("start");
@@ -148,7 +166,7 @@ export function SessionDialog({
     } finally {
       setSubmitting(null);
     }
-  }, [actionsBlocked, buildBody, onCreated, onOpenChange, onStarted, refreshSessions, validate]);
+  }, [buildBody, onCreated, onOpenChange, onStarted, refreshSessions, startBlocked, validate]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,9 +192,34 @@ export function SessionDialog({
               <Input type="date" value={targetOn} onChange={(e) => setTargetOn(e.target.value)} />
             </Field>
           </div>
+          {!departmentId ? (
+            <Field label="Department">
+              <Select
+                value={chosenDepartmentId || "none"}
+                onValueChange={(value) =>
+                  setChosenDepartmentId(value === "none" || value == null ? "" : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Choose a department</SelectItem>
+                  {departments.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
           <Field label="Home library">
             <p className="text-sm font-medium">
-              {homeLibrary ?? "This department has no Koha library."}
+              {homeLibrary ??
+                (departmentChosen
+                  ? "This department has no Koha library."
+                  : "Choose a department to see its Koha library.")}
             </p>
           </Field>
           <Field label="Item type (optional)">
@@ -245,7 +288,7 @@ export function SessionDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={submitting !== null || actionsBlocked}
+            disabled={submitting !== null || draftBlocked}
             onClick={() => void saveDraft()}
           >
             Save draft
@@ -253,12 +296,12 @@ export function SessionDialog({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               type="button"
-              disabled={submitting !== null || actionsBlocked}
+              disabled={submitting !== null || startBlocked}
               onClick={() => void startSession()}
             >
               Start and pull snapshot
             </Button>
-            {!capabilities?.item_list ? (
+            {capabilities !== null && !capabilities.item_list ? (
               <span className="text-sm text-muted-foreground">{KOHA_UNAVAILABLE}</span>
             ) : null}
           </div>

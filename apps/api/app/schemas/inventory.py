@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class SessionCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     description: str | None = None
+    department_id: UUID | None = None
     start_on: date
     target_on: date | None = None
     locations: list[str] = Field(default_factory=list)
