@@ -13,6 +13,14 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -156,6 +164,8 @@ export function ScanView() {
   const [stationLocation, setStationLocation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [markingDamage, setMarkingDamage] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ScanResponse | null>(null);
@@ -340,6 +350,24 @@ export function ScanView() {
     void submitScan();
   };
 
+  const finishSession = useCallback(async () => {
+    if (!sessionId || !canManage || session?.status !== "in_progress") {
+      return;
+    }
+    setFinishing(true);
+    setError(null);
+    try {
+      await fetchApi(`/inventory/sessions/${sessionId}/complete`, { method: "POST" });
+      setConfirmFinish(false);
+      await refreshSession();
+      await loadSide();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not finish the session.");
+    } finally {
+      setFinishing(false);
+    }
+  }, [canManage, loadSide, refreshSession, session?.status, sessionId]);
+
   const canMarkDamaged = Boolean(
     lastResult?.id &&
       lastResult.counts &&
@@ -354,6 +382,12 @@ export function ScanView() {
     return <KohaUnavailableBanner />;
   }
 
+  if (session?.status === "completed") {
+    return (
+      <FinishedResults sessionId={sessionId} summary={summary} loading={loading && !summary} />
+    );
+  }
+
   if (session?.status !== "in_progress") {
     return (
       <ViewEmpty message="Scanning is available while the session is in progress." />
@@ -365,7 +399,22 @@ export function ScanView() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-3">
+    <div className="space-y-5">
+      {canManage ? (
+        <div className="flex justify-end">
+          <Button type="button" onClick={() => setConfirmFinish(true)}>
+            Finish session
+          </Button>
+        </div>
+      ) : null}
+      <FinishSessionDialog
+        open={confirmFinish}
+        finishing={finishing}
+        onOpenChange={setConfirmFinish}
+        onConfirm={() => void finishSession()}
+      />
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <div className="grid gap-5 xl:grid-cols-3">
       <div className="space-y-5 xl:col-span-2">
         <Card className="overflow-hidden py-0">
           <ScanCaptureHeader />
@@ -521,7 +570,7 @@ export function ScanView() {
           </CardContent>
         </Card>
       </div>
-
+      </div>
     </div>
   );
 }
@@ -719,5 +768,190 @@ function RecentCapturesFeed({ rows }: { rows: LocalScanRow[] }) {
         );
       })}
     </div>
+  );
+}
+
+const RESULT_LISTS: Array<{
+  condition: string;
+  title: string;
+  hint: string;
+}> = [
+  { condition: "found", title: "Successfully scanned", hint: "Expected copies matched on the shelf." },
+  { condition: "unverified", title: "Not scanned", hint: "Expected copies with no scan and no shelf search." },
+  { condition: "not_found", title: "Missing after shelf search", hint: "Marked not found. Koha status is unchanged." },
+  { condition: "unexpected", title: "Unexpected", hint: "Scanned copies outside this session’s expected set." },
+  { condition: "misplaced", title: "Misplaced", hint: "Found on a different shelf than the snapshot." },
+  { condition: "damaged", title: "Damaged", hint: "Observed damage. Koha is unchanged until a proposal is submitted." },
+  { condition: "withdrawn", title: "Withdrawal requested", hint: "Withdrawn in Koha within this session scope." },
+];
+
+function FinishedResults({
+  sessionId,
+  summary,
+  loading,
+}: {
+  sessionId: string | null;
+  summary: SessionSummary | null;
+  loading: boolean;
+}) {
+  const [lists, setLists] = useState<Record<string, InventoryItemRow[]>>({});
+  const [totals, setTotals] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      RESULT_LISTS.map(async (entry) => {
+        const data = await fetchApi<Paged<InventoryItemRow>>(
+          `/inventory/sessions/${sessionId}/items?condition=${entry.condition}&per_page=25&page=1`,
+        );
+        return [entry.condition, data] as const;
+      }),
+    )
+      .then((pages) => {
+        if (cancelled) {
+          return;
+        }
+        const nextLists: Record<string, InventoryItemRow[]> = {};
+        const nextTotals: Record<string, number> = {};
+        for (const [condition, data] of pages) {
+          nextLists[condition] = data.items;
+          nextTotals[condition] = data.total;
+        }
+        setLists(nextLists);
+        setTotals(nextTotals);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLists({});
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  if (loading) {
+    return <ViewLoading label="Loading finished session…" />;
+  }
+
+  const counted = summary
+    ? (summary.found ?? 0) +
+      (summary.misplaced ?? 0) +
+      (summary.damaged ?? 0) +
+      (summary.withdrawn ?? 0) +
+      (summary.unexpected ?? 0)
+    : 0;
+
+  return (
+    <div className="space-y-5">
+      <Card className="py-4">
+        <CardContent className="space-y-2">
+          <h3 className="text-[15px] font-semibold">Session finished</h3>
+          <p className="text-sm text-muted-foreground">
+            Scanning is closed for this session. These counts are stored with the session and stay
+            available after you leave or refresh.
+          </p>
+          <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
+            <ResultStat label="Scanned and matched" value={summary?.found ?? 0} />
+            <ResultStat label="Not scanned" value={summary?.unverified ?? 0} />
+            <ResultStat label="Unexpected" value={summary?.unexpected ?? 0} />
+            <ResultStat
+              label="Other discrepancies"
+              value={Math.max(0, counted - (summary?.found ?? 0))}
+            />
+          </div>
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {RESULT_LISTS.map((entry) => (
+          <Card key={entry.condition} className="py-4">
+            <CardContent className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold">
+                  {entry.title}
+                  <span className="ml-2 font-mono text-muted-foreground">
+                    {totals[entry.condition] ?? 0}
+                  </span>
+                </h3>
+                <p className="text-xs text-muted-foreground">{entry.hint}</p>
+              </div>
+              <ResultLines rows={lists[entry.condition] ?? []} total={totals[entry.condition] ?? 0} />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResultStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-muted/40 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-mono text-lg font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function ResultLines({ rows, total }: { rows: InventoryItemRow[]; total: number }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">None.</p>;
+  }
+  return (
+    <ul className="max-h-56 space-y-2 overflow-y-auto text-sm">
+      {rows.map((row) => (
+        <li
+          key={row.scan_id ?? row.expected_item_id ?? row.title}
+          className="border-b border-border pb-2 last:border-0"
+        >
+          <p className="font-medium">{row.title || "Item"}</p>
+          <p className="text-xs text-muted-foreground">
+            {[row.barcode, row.call_number, row.snapshot_location].filter(Boolean).join(" · ") || "—"}
+          </p>
+        </li>
+      ))}
+      {total > rows.length ? (
+        <li className="text-xs text-muted-foreground">
+          Showing {rows.length} of {total}.
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+function FinishSessionDialog({
+  open,
+  finishing,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  finishing: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Finish this session?</DialogTitle>
+          <DialogDescription>
+            Scanning stops for this session. Unscanned copies stay unverified and are not marked
+            lost in Koha. You can review the saved results on this page after you confirm.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={finishing} onClick={() => onOpenChange(false)}>
+            Keep scanning
+          </Button>
+          <Button type="button" disabled={finishing} onClick={onConfirm}>
+            {finishing ? "Finishing…" : "Finish session"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

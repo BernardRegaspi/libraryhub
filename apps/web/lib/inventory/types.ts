@@ -107,6 +107,7 @@ export type InventoryItemRow = {
   operator_id?: string | null;
   remark: string;
   observed_damaged?: boolean;
+  home_library?: string;
 };
 
 export type ScanResponse = {
