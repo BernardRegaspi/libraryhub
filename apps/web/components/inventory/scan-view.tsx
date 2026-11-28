@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ApiError, fetchApi } from "@/lib/api";
+import { downloadSessionExport } from "@/lib/inventory/export";
 import { useInventoryBarcodeWedge } from "@/lib/inventory/barcode-wedge";
 import { acceptInventoryScan } from "@/lib/inventory/scan";
 import type { InventoryItemRow, Paged, ScanResponse, SessionSummary } from "@/lib/inventory/types";
@@ -849,11 +850,16 @@ function FinishedResults({
     <div className="space-y-5">
       <Card className="py-4">
         <CardContent className="space-y-2">
-          <h3 className="text-[15px] font-semibold">Session finished</h3>
-          <p className="text-sm text-muted-foreground">
-            Scanning is closed for this session. These counts are stored with the session and stay
-            available after you leave or refresh.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-[15px] font-semibold">Session finished</h3>
+              <p className="text-sm text-muted-foreground">
+                Scanning is closed for this session. These counts are stored with the session and stay
+                available after you leave or refresh.
+              </p>
+            </div>
+            <ExportBooksButton sessionId={sessionId} />
+          </div>
           <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-4">
             <ResultStat label="Scanned and matched" value={summary?.found ?? 0} />
             <ResultStat label="Not scanned" value={summary?.unverified ?? 0} />
@@ -919,6 +925,39 @@ function ResultLines({ rows, total }: { rows: InventoryItemRow[]; total: number 
         </li>
       ) : null}
     </ul>
+  );
+}
+
+function ExportBooksButton({ sessionId }: { sessionId: string | null }) {
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const download = async () => {
+    if (!sessionId) {
+      return;
+    }
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadSessionExport(sessionId, {
+        kind: "filter",
+        format: "csv",
+        condition: "all",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button type="button" variant="outline" disabled={!sessionId || exporting} onClick={() => void download()}>
+        {exporting ? "Exporting…" : "Export CSV"}
+      </Button>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
   );
 }
 

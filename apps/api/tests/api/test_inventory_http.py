@@ -440,7 +440,7 @@ def test_export_csv_omits_internal_item_ids(auth_client, db, monkeypatch):
         department_id=department.id,
         name="Export session",
         description=None,
-        status="in_progress",
+        status="completed",
         home_library_id="COLLEGE",
         item_type_id=None,
         start_on=date(2026, 11, 1),

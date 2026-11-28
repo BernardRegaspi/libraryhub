@@ -12,17 +12,6 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -32,7 +21,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchApi } from "@/lib/api";
-import { downloadSessionExport } from "@/lib/inventory/export";
 import { parseInventoryView } from "@/lib/inventory/search-params";
 import type {
   InventoryCapabilities,
@@ -102,7 +90,6 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
   const [session, setSession] = useState<InventorySession | null>(null);
   const [listSearch, setListSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
   const canManage = permissions.includes("inventory.manage");
 
@@ -180,21 +167,6 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
     [capabilities?.item_list, departmentId, refreshSessions, setView],
   );
 
-  const runExport = useCallback(
-    async (kind: "findings" | "filter" | "unverified" | "work_order", format: "csv" | "xlsx") => {
-      if (!sessionId) {
-        return;
-      }
-      setExporting(true);
-      try {
-        await downloadSessionExport(sessionId, { kind, format });
-      } finally {
-        setExporting(false);
-      }
-    },
-    [sessionId],
-  );
-
   const contextValue = useMemo(
     () => ({
       permissions,
@@ -242,32 +214,6 @@ export function InventoryDesk({ permissions, departmentId, userId }: InventoryDe
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button type="button" variant="outline" disabled={!sessionId || exporting} />
-                }
-              >
-                Export
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Session export</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(["findings", "filter", "unverified", "work_order"] as const).map((kind) => (
-                  <DropdownMenuSub key={kind}>
-                    <DropdownMenuSubTrigger>{kind.replace("_", " ")}</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onClick={() => void runExport(kind, "csv")}>
-                        CSV
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => void runExport(kind, "xlsx")}>
-                        Excel
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
             <Button type="button" variant="outline" size="lg" onClick={() => void refreshSessions()}>
               Refresh
             </Button>

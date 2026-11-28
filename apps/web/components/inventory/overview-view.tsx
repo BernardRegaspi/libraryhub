@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchApi } from "@/lib/api";
+import { downloadSessionExport } from "@/lib/inventory/export";
 import type {
   InventoryItemRow,
   InventorySession,
@@ -42,6 +43,7 @@ export function OverviewView({ active }: { active: boolean }) {
   const [loading, setLoading] = useState(true);
   const loadedSession = useRef<string | null>(null);
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]["id"]>(
     "all",
   );
@@ -408,6 +410,24 @@ export function OverviewView({ active }: { active: boolean }) {
                             }}
                           >
                             Scan
+                          </Button>
+                        ) : null}
+                        {row.status === "completed" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={exportingId === row.id}
+                            onClick={() => {
+                              setExportingId(row.id);
+                              void downloadSessionExport(row.id, {
+                                kind: "filter",
+                                format: "csv",
+                                condition: "all",
+                              }).finally(() => setExportingId(null));
+                            }}
+                          >
+                            {exportingId === row.id ? "Exporting…" : "Export CSV"}
                           </Button>
                         ) : null}
                       </td>

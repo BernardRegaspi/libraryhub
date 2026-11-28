@@ -45,7 +45,7 @@ from app.services.inventory_adjustments import (
     update_draft_adjustment,
 )
 from app.services.inventory_audit import list_session_audit, write_inventory_audit
-from app.services.inventory_errors import InventoryError, department_required
+from app.services.inventory_errors import InventoryError, department_required, invalid_state
 from app.services.inventory_exports import export_rows, render_export
 from app.services.inventory_scans import set_damage, submit_scan
 from app.services.inventory_sessions import (
@@ -975,6 +975,8 @@ def session_exports(
     payload, _session = user
     department_id = _require_department(payload)
     session = _load_session(db, _parse_uuid(session_id), department_id=department_id)
+    if kind != "work_order" and session.status != "completed":
+        _raise_inventory(invalid_state())
     if kind not in _EXPORT_KINDS or format not in _EXPORT_FORMATS:
         _validation_error()
     if condition not in _ITEM_CONDITIONS:
